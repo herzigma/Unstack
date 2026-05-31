@@ -1,20 +1,63 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Unstack
 
-# Run and deploy your AI Studio app
+A modern, distraction-free reader for Substack publications. Unstack gives you a clean, beautiful reading experience with elegant typography, seamless media handling, and intuitive native-like previews for your favorite Substack newsletters.
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/37a41fc6-87fb-46b4-9c08-c936aa6b5b02
+- **Distraction-Free Reading:** A minimalist, typography-focused aesthetic that puts the content front and center.
+- **Beautiful Media Handling:** Custom parsing and safe rendering for complex Substack embeds including YouTube, Twitter, and native Substack videos.
+- **Paywall Previews:** Elegantly styled placeholders for premium content blocks with clear paths to the original publication.
+- **Substack Discovery:** View feeds and parse individual posts natively directly from an author's domain.
 
-## Run Locally
+## Tech Stack
 
-**Prerequisites:**  Node.js
+- **Frontend:** React 19, Tailwind CSS v4, Lucide React (for iconography), Motion (for smooth layout transitions and animations).
+- **Backend:** Express API proxy for safely fetching Substack feeds while avoiding CORS issues.
+- **Parser:** `html-react-parser` combined with `dompurify` for secure and customizable transformation of raw HTML into polished React components.
+- **Build Tool:** Vite + esbuild (for compiling the custom API and serving over a single port).
 
+## Getting Started
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### Prerequisites
+
+Ensure you have Node.js installed.
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+### Environment Variables
+
+Before starting the app, copy the `.env.example` file to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+If you plan to utilize AI features down the road, you may populate `GEMINI_API_KEY` inside `.env`. `APP_URL` is also available for custom deployment domains.
+
+### Running locally
+
+```bash
+npm run dev
+```
+
+The application and development server will be available at `http://localhost:3000`.
+
+### Production Build
+
+To build the full-stack application (compiling both the React application and the Node/Express backend):
+
+```bash
+npm run build
+```
+
+Then start the built application:
+
+```bash
+npm start
+```
