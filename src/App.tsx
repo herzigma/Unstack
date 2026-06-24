@@ -1,10 +1,29 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, useParams, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Home } from './components/Home';
 import { Feed } from './components/Feed';
 import { Post } from './components/Post';
 import { parseSubstackInput } from './lib/utils';
+import { getQueryStrippedPath } from './lib/url';
 import { Github } from 'lucide-react';
+
+function QueryStringCleaner({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const cleanPath = getQueryStrippedPath(location);
+
+  React.useEffect(() => {
+    if (cleanPath) {
+      navigate(cleanPath, { replace: true });
+    }
+  }, [cleanPath, navigate]);
+
+  if (cleanPath) {
+    return null;
+  }
+
+  return <>{children}</>;
+}
 
 function RouteResolver() {
   const { "*": path } = useParams();
@@ -65,9 +84,11 @@ export default function App() {
     <div className="min-h-screen bg-paper font-sans text-ink selection:bg-accent/20 flex flex-col">
       <div className="flex-grow">
         <BrowserRouter>
-          <Routes>
-            <Route path="/*" element={<RouteResolver />} />
-          </Routes>
+          <QueryStringCleaner>
+            <Routes>
+              <Route path="/*" element={<RouteResolver />} />
+            </Routes>
+          </QueryStringCleaner>
         </BrowserRouter>
       </div>
       <footer className="py-8 text-center text-ink-light text-sm bg-paper">
