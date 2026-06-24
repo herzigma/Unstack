@@ -2,6 +2,17 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 
+function parseSubstackPreloads(html: string) {
+  const match = html.match(/window\._preloads\s*=\s*JSON\.parse\(("(?:(?:\\.|[^"\\])*)")\)/s);
+  if (!match) {
+    return null;
+  }
+
+  // Substack embeds preload data as JSON.parse("escaped JSON text").
+  const jsonText = JSON.parse(match[1]);
+  return JSON.parse(jsonText);
+}
+
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
@@ -39,9 +50,8 @@ async function startServer() {
       const archiveRes = await fetch(archiveUrl, { headers: fetchHeaders });
       const archiveHtml = await archiveRes.text();
       
-      const match = archiveHtml.match(/window\._preloads\s*=\s*(JSON\.parse\(".*?"\))/);
-      if (match) {
-        const data = eval(match[1]);
+      const data = parseSubstackPreloads(archiveHtml);
+      if (data) {
         const posts = data.newPostsForArchive || data.feed || data.posts || data.recentPosts || [];
         return res.json(posts);
       }
@@ -69,9 +79,8 @@ async function startServer() {
       const text = await response.text();
 
       // Check for _preloads in the HTML
-      const match = text.match(/window\._preloads\s*=\s*(JSON\.parse\(".*?"\))/);
-      if (match) {
-         const data = eval(match[1]);
+      const data = parseSubstackPreloads(text);
+      if (data) {
          const post = data.post || data.postDetail || (data.pub && data.pub.post);
          if (post) {
             return res.json(post);
