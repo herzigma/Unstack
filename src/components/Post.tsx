@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2, Share, FileText, Lock, PlayCircle } from 'lucide-re
 import { motion } from 'motion/react';
 import parse, { HTMLReactParserOptions, Element } from 'html-react-parser';
 import DOMPurify from 'dompurify';
+import { formatDocumentTitle } from '../lib/title';
 
 interface PostProps {
   domain: string;
@@ -24,6 +25,8 @@ export function Post({ domain, slug, onBack }: PostProps) {
     async function fetchPost() {
       setLoading(true);
       setError('');
+      setPost(null);
+      document.title = formatDocumentTitle('Loading post');
       try {
         const res = await fetch(`/api/post?domain=${encodeURIComponent(domain)}&slug=${encodeURIComponent(slug)}`);
         if (!res.ok) {
@@ -39,6 +42,12 @@ export function Post({ domain, slug, onBack }: PostProps) {
     }
     fetchPost();
   }, [domain, slug]);
+
+  useEffect(() => {
+    if (post?.title) {
+      document.title = formatDocumentTitle(post.title);
+    }
+  }, [post?.title]);
 
   useEffect(() => {
     const handleScroll = () => {

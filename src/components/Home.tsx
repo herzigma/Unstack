@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Search, Loader2, ArrowRight } from 'lucide-react';
 import { parseSubstackInput } from '../lib/utils';
+import { formatDocumentTitle } from '../lib/title';
 import { motion } from 'motion/react';
 
 interface HomeProps {
@@ -10,6 +11,10 @@ interface HomeProps {
 export function Home({ onNavigate }: HomeProps) {
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    document.title = formatDocumentTitle();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

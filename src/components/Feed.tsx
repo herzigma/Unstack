@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { SubstackPostItem } from '../types';
 import { format } from 'date-fns';
 import { ArrowLeft, Loader2, Globe } from 'lucide-react';
+import { formatDocumentTitle } from '../lib/title';
 import { motion } from 'motion/react';
 
 interface FeedProps {
@@ -14,6 +15,10 @@ export function Feed({ domain, onNavigate, onPostClick }: FeedProps) {
   const [posts, setPosts] = useState<SubstackPostItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    document.title = formatDocumentTitle(domain);
+  }, [domain]);
 
   useEffect(() => {
     async function fetchFeed() {
