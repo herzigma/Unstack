@@ -61,3 +61,7 @@ Then start the built application:
 ```bash
 npm start
 ```
+
+## License
+
+MIT
