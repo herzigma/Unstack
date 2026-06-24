@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="Unstack">
+  <rect width="192" height="192" rx="42" fill="#f8f5ef"/>
+  <path d="M60 51h63c9.9 0 18 8.1 18 18v69H78c-9.9 0-18-8.1-18-18V51Z" fill="#1f2933" opacity=".16"/>
+  <path d="M48 39h63c9.9 0 18 8.1 18 18v69H66c-9.9 0-18-8.1-18-18V39Z" fill="#1f2933"/>
+  <path d="M72 69h36M72 90h36M72 111h21" stroke="#f8f5ef" stroke-width="9" stroke-linecap="round"/>
+</svg>

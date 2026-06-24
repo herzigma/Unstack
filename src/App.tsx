@@ -4,8 +4,8 @@ import { Home } from './components/Home';
 import { Feed } from './components/Feed';
 import { Post } from './components/Post';
 import { parseSubstackInput } from './lib/utils';
-import { getQueryStrippedPath } from './lib/url';
-import { Github } from 'lucide-react';
+import { getQueryStrippedPath, getSharedSubstackInput } from './lib/url';
+import { FileText, Github } from 'lucide-react';
 
 function QueryStringCleaner({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -23,6 +23,47 @@ function QueryStringCleaner({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
+}
+
+function ShareTarget() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const sharedInput = getSharedSubstackInput(location.search);
+  const parsed = sharedInput ? parseSubstackInput(sharedInput) : null;
+
+  React.useEffect(() => {
+    if (!parsed) {
+      return;
+    }
+
+    const target = parsed.slug ? `/${parsed.domain}/p/${parsed.slug}` : `/${parsed.domain}`;
+    navigate(target, { replace: true });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [navigate, parsed]);
+
+  if (parsed) {
+    return (
+      <div className="min-h-screen bg-paper flex flex-col items-center justify-center">
+        <span className="text-ink-light font-mono text-sm uppercase tracking-widest">Opening Shared Link</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-paper flex flex-col items-center justify-center p-6 text-center">
+      <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6">
+        <FileText size={24} />
+      </div>
+      <h2 className="text-2xl font-serif text-ink mb-2">Shared Link Not Recognized</h2>
+      <p className="text-ink-light max-w-md mb-8">Unstack can open shared Substack publication and post links.</p>
+      <button
+        onClick={() => navigate('/', { replace: true })}
+        className="border border-ink/20 px-6 py-3 rounded hover:bg-ink hover:text-white transition-all text-sm font-medium uppercase tracking-widest"
+      >
+        Search Instead
+      </button>
+    </div>
+  );
 }
 
 function RouteResolver() {
@@ -52,6 +93,10 @@ function RouteResolver() {
 
   if (!path) {
     return <Home onNavigate={handleNavigate} />;
+  }
+
+  if (path === 'share-target') {
+    return <ShareTarget />;
   }
 
   const parsed = parseSubstackInput(path);

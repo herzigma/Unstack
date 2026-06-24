@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Unstack">
+  <rect width="512" height="512" rx="112" fill="#f8f5ef"/>
+  <path d="M160 136h168c26.4 0 48 21.6 48 48v184H208c-26.4 0-48-21.6-48-48V136Z" fill="#1f2933" opacity=".16"/>
+  <path d="M128 104h168c26.4 0 48 21.6 48 48v184H176c-26.4 0-48-21.6-48-48V104Z" fill="#1f2933"/>
+  <path d="M192 184h96M192 240h96M192 296h56" stroke="#f8f5ef" stroke-width="24" stroke-linecap="round"/>
+</svg>

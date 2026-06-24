@@ -26,4 +26,37 @@ describe('App routing', () => {
     await screen.findByText('No recent posts found for this newsletter.');
     expect(fetch).toHaveBeenCalledWith('/api/feed?domain=publication.substack.com');
   });
+
+  it('opens shared PWA target URLs as clean Unstack routes', async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        id: 1,
+        title: 'Shared Post',
+        slug: 'shared-post',
+        post_date: '2026-06-24T12:00:00.000Z',
+        audience: 'everyone',
+        canonical_url: 'https://readtangle.substack.com/p/shared-post',
+        description: 'Description',
+        type: 'newsletter',
+        body_html: '<p>Shared body.</p>',
+      }),
+    });
+    vi.stubGlobal('fetch', fetch);
+    window.history.pushState(
+      {},
+      '',
+      '/share-target?url=https%3A%2F%2Freadtangle.substack.com%2Fp%2Fshared-post',
+    );
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/readtangle.substack.com/p/shared-post');
+      expect(window.location.search).toBe('');
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Shared Post' })).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith('/api/post?domain=readtangle.substack.com&slug=shared-post');
+  });
 });
