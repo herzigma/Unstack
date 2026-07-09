@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getPost } from './post';
+import { getPost, validateArticleUrl } from './post';
 
 function mockFetchOnce(text: string) {
   vi.stubGlobal(
@@ -9,6 +9,51 @@ function mockFetchOnce(text: string) {
     }),
   );
 }
+
+describe('validateArticleUrl', () => {
+  it('accepts a valid https URL', () => {
+    const result = validateArticleUrl('https://example.com/article');
+    expect(result).toBeInstanceOf(URL);
+    expect(result.hostname).toBe('example.com');
+  });
+
+  it('accepts a valid http URL', () => {
+    const result = validateArticleUrl('http://example.com/article');
+    expect(result.protocol).toBe('http:');
+  });
+
+  it('rejects ftp protocol', () => {
+    expect(() => validateArticleUrl('ftp://example.com/file')).toThrow();
+  });
+
+  it('rejects file protocol', () => {
+    expect(() => validateArticleUrl('file:///etc/passwd')).toThrow();
+  });
+
+  it('rejects localhost', () => {
+    expect(() => validateArticleUrl('https://localhost/admin')).toThrow();
+  });
+
+  it('rejects 127.x loopback addresses', () => {
+    expect(() => validateArticleUrl('https://127.0.0.1/')).toThrow();
+  });
+
+  it('rejects 10.x private addresses', () => {
+    expect(() => validateArticleUrl('https://10.0.0.1/')).toThrow();
+  });
+
+  it('rejects 192.168.x private addresses', () => {
+    expect(() => validateArticleUrl('https://192.168.1.1/')).toThrow();
+  });
+
+  it('rejects 169.254.x link-local addresses (AWS metadata endpoint)', () => {
+    expect(() => validateArticleUrl('https://169.254.169.254/latest/meta-data/')).toThrow();
+  });
+
+  it('rejects malformed URLs', () => {
+    expect(() => validateArticleUrl('not-a-url')).toThrow();
+  });
+});
 
 describe('getPost', () => {
   it('extracts via the Substack preload path when present', async () => {
