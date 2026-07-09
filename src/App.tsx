@@ -136,7 +136,7 @@ export default function App() {
           </QueryStringCleaner>
         </BrowserRouter>
       </div>
-      <footer className="py-8 text-center text-ink-light text-sm bg-paper">
+      <footer className="py-8 text-center text-ink-light text-sm bg-paper space-y-2">
         <div className="flex items-center justify-center gap-2">
           <span>Unstack is open source.</span>
           <a
@@ -149,6 +149,18 @@ export default function App() {
             View on GitHub
           </a>
         </div>
+        <p>Not affiliated with, endorsed by, or sponsored by Substack or any other newsletter or content platform.</p>
+        <p>
+          Built with ♥ in Boston by{' '}
+          <a
+            href="https://jhm.lol"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-ink transition-colors font-medium decoration-ink/20 hover:decoration-ink underline underline-offset-4"
+          >
+            jhm.lol
+          </a>
+        </p>
       </footer>
     </div>
   );
