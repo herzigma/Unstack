@@ -9,7 +9,7 @@ describe('App routing', () => {
 
       return Promise.resolve({
         ok: true,
-        json: vi.fn().mockResolvedValue([]),
+        json: vi.fn().mockResolvedValue({ platform: 'substack', posts: [] }),
       });
     });
     vi.stubGlobal('fetch', fetch);
@@ -31,15 +31,16 @@ describe('App routing', () => {
     const fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue({
-        id: 1,
+        id: '1',
         title: 'Shared Post',
-        slug: 'shared-post',
-        post_date: '2026-06-24T12:00:00.000Z',
-        audience: 'everyone',
-        canonical_url: 'https://readtangle.substack.com/p/shared-post',
+        publishedAt: '2026-06-24T12:00:00.000Z',
+        isPaywalled: false,
+        canonicalUrl: 'https://readtangle.substack.com/p/shared-post',
         description: 'Description',
-        type: 'newsletter',
-        body_html: '<p>Shared body.</p>',
+        platform: 'substack',
+        bodyHtml: '<p>Shared body.</p>',
+        isPreviewOnly: false,
+        siteName: 'Substack',
       }),
     });
     vi.stubGlobal('fetch', fetch);
@@ -57,6 +58,8 @@ describe('App routing', () => {
     });
 
     expect(await screen.findByRole('heading', { name: 'Shared Post' })).toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledWith('/api/post?domain=readtangle.substack.com&slug=shared-post');
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/post?url=${encodeURIComponent('https://readtangle.substack.com/p/shared-post')}`,
+    );
   });
 });

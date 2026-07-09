@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getQueryStrippedPath, getSharedSubstackInput } from './url';
+import { getQueryStrippedPath, getSharedArticleInput } from './url';
 
 describe('getQueryStrippedPath', () => {
   it('strips query strings', () => {
@@ -23,24 +23,24 @@ describe('getQueryStrippedPath', () => {
   });
 });
 
-describe('getSharedSubstackInput', () => {
+describe('getSharedArticleInput', () => {
   it('uses the shared URL parameter first', () => {
-    expect(getSharedSubstackInput('?title=Post&url=https%3A%2F%2Freadtangle.substack.com%2Fp%2Fpost')).toBe(
+    expect(getSharedArticleInput('?title=Post&url=https%3A%2F%2Freadtangle.substack.com%2Fp%2Fpost')).toBe(
       'https://readtangle.substack.com/p/post',
     );
   });
 
   it('extracts URLs embedded in shared text', () => {
-    expect(getSharedSubstackInput('?text=Read%20this%20https%3A%2F%2Fplatformer.news%2Fp%2Fpost%20now')).toBe(
+    expect(getSharedArticleInput('?text=Read%20this%20https%3A%2F%2Fplatformer.news%2Fp%2Fpost%20now')).toBe(
       'https://platformer.news/p/post',
     );
   });
 
   it('falls back to plain shared text when no URL is embedded', () => {
-    expect(getSharedSubstackInput('?text=pragmaticengineer')).toBe('pragmaticengineer');
+    expect(getSharedArticleInput('?text=pragmaticengineer')).toBe('pragmaticengineer');
   });
 
   it('returns null when no share params are present', () => {
-    expect(getSharedSubstackInput('')).toBeNull();
+    expect(getSharedArticleInput('')).toBeNull();
   });
 });

@@ -3,8 +3,8 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate, useParams } fro
 import { Home } from './components/Home';
 import { Feed } from './components/Feed';
 import { Post } from './components/Post';
-import { parseSubstackInput } from './lib/utils';
-import { getQueryStrippedPath, getSharedSubstackInput } from './lib/url';
+import { parseArticleInput } from './lib/utils';
+import { getQueryStrippedPath, getSharedArticleInput } from './lib/url';
 import { FileText, Github } from 'lucide-react';
 
 function QueryStringCleaner({ children }: { children: React.ReactNode }) {
@@ -28,15 +28,15 @@ function QueryStringCleaner({ children }: { children: React.ReactNode }) {
 function ShareTarget() {
   const location = useLocation();
   const navigate = useNavigate();
-  const sharedInput = getSharedSubstackInput(location.search);
-  const parsed = sharedInput ? parseSubstackInput(sharedInput) : null;
+  const sharedInput = getSharedArticleInput(location.search);
+  const parsed = sharedInput ? parseArticleInput(sharedInput) : null;
 
   React.useEffect(() => {
     if (!parsed) {
       return;
     }
 
-    const target = parsed.slug ? `/${parsed.domain}/p/${parsed.slug}` : `/${parsed.domain}`;
+    const target = parsed.url ? `/${parsed.domain}${new URL(parsed.url).pathname}` : `/${parsed.domain}`;
     navigate(target, { replace: true });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [navigate, parsed]);
@@ -55,7 +55,7 @@ function ShareTarget() {
         <FileText size={24} />
       </div>
       <h2 className="text-2xl font-serif text-ink mb-2">Shared Link Not Recognized</h2>
-      <p className="text-ink-light max-w-md mb-8">Unstack can open shared Substack publication and post links.</p>
+      <p className="text-ink-light max-w-md mb-8">Unstack can open shared newsletter and article links.</p>
       <button
         onClick={() => navigate('/', { replace: true })}
         className="border border-ink/20 px-6 py-3 rounded hover:bg-ink hover:text-white transition-all text-sm font-medium uppercase tracking-widest"
@@ -70,19 +70,19 @@ function RouteResolver() {
   const { "*": path } = useParams();
   const navigate = useNavigate();
 
-  const handleNavigate = (domain: string, slug: string | null) => {
+  const handleNavigate = (domain: string, url: string | null) => {
     if (!domain) {
       navigate('/');
-    } else if (slug) {
-      navigate(`/${domain}/p/${slug}`);
+    } else if (url) {
+      navigate(`/${domain}${new URL(url).pathname}`);
     } else {
       navigate(`/${domain}`);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handlePostClick = (domain: string, slug: string) => {
-    navigate(`/${domain}/p/${slug}`);
+  const handlePostClick = (domain: string, url: string) => {
+    navigate(`/${domain}${new URL(url).pathname}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -99,27 +99,27 @@ function RouteResolver() {
     return <ShareTarget />;
   }
 
-  const parsed = parseSubstackInput(path);
+  const parsed = parseArticleInput(path);
 
   if (!parsed || !parsed.domain) {
     return <Home onNavigate={handleNavigate} />;
   }
 
-  if (parsed.slug) {
+  if (parsed.url) {
     return (
-      <Post 
-        domain={parsed.domain} 
-        slug={parsed.slug} 
-        onBack={() => handleBackToFeed(parsed.domain)} 
+      <Post
+        domain={parsed.domain}
+        url={parsed.url}
+        onBack={() => handleBackToFeed(parsed.domain)}
       />
     );
   }
 
   return (
-    <Feed 
-      domain={parsed.domain} 
-      onNavigate={handleNavigate} 
-      onPostClick={(slug) => handlePostClick(parsed.domain, slug)} 
+    <Feed
+      domain={parsed.domain}
+      onNavigate={handleNavigate}
+      onPostClick={(url) => handlePostClick(parsed.domain, url)}
     />
   );
 }

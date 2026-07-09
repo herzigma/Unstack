@@ -1,7 +1,7 @@
 {
   "name": "Unstack",
   "short_name": "Unstack",
-  "description": "A clean, distraction-free reader for Substack publications.",
+  "description": "A clean, distraction-free reader for Substack, Ghost, and Medium newsletters and articles.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

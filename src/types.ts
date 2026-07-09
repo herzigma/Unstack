@@ -1,27 +1,26 @@
-export interface SubstackAuthor {
-  id: number;
+export type Platform = 'substack' | 'ghost' | 'medium' | 'generic';
+
+export interface NormalizedAuthor {
+  id: string;
   name: string;
-  photo_url?: string;
-  twitter_screen_name?: string;
+  photoUrl?: string;
 }
 
-export interface SubstackPostItem {
-  id: number;
+export interface NormalizedPostSummary {
+  id: string;
   title: string;
   subtitle?: string;
-  slug: string;
-  post_date: string;
-  audience: string;
-  canonical_url: string;
-  description: string;
-  cover_image?: string;
-  publishedBylines?: SubstackAuthor[];
-  type: string;
-  body_html?: string; // Sometimes present in list view
+  publishedAt: string;
+  isPaywalled: boolean;
+  canonicalUrl: string;
+  description?: string;
+  coverImage?: string;
+  authors?: NormalizedAuthor[];
+  platform: Platform;
 }
 
-export interface SubstackPostDetail extends SubstackPostItem {
-  body_html: string;
-  podcast_url?: string;
-  videoUpload?: any;
+export interface NormalizedPostDetail extends NormalizedPostSummary {
+  bodyHtml: string;
+  isPreviewOnly: boolean;
+  siteName?: string;
 }

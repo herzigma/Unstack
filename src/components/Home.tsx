@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Search, Loader2, ArrowRight } from 'lucide-react';
-import { parseSubstackInput } from '../lib/utils';
+import { parseArticleInput } from '../lib/utils';
 import { formatDocumentTitle } from '../lib/title';
 import { motion } from 'motion/react';
 
 interface HomeProps {
-  onNavigate: (domain: string, slug: string | null) => void;
+  onNavigate: (domain: string, url: string | null) => void;
 }
 
 export function Home({ onNavigate }: HomeProps) {
@@ -19,14 +19,14 @@ export function Home({ onNavigate }: HomeProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    const parsed = parseSubstackInput(input);
+
+    const parsed = parseArticleInput(input);
     if (!parsed) {
-      setError('Please enter a valid Substack URL or handle.');
+      setError('Please enter a valid URL or Substack handle.');
       return;
     }
-    
-    onNavigate(parsed.domain, parsed.slug);
+
+    onNavigate(parsed.domain, parsed.url);
   };
 
   return (
@@ -54,7 +54,7 @@ export function Home({ onNavigate }: HomeProps) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="pragmaticengineer, readtangle.substack.com, or URL..."
+            placeholder="a Substack handle, or any newsletter/article URL..."
             className="w-full pl-12 pr-12 py-4 bg-white/50 backdrop-blur-md border border-ink/20 focus:border-ink focus:bg-white rounded-lg shadow-sm font-sans text-lg text-ink placeholder:text-ink/40 outline-none transition-all duration-300"
           />
           <button 
@@ -79,9 +79,11 @@ export function Home({ onNavigate }: HomeProps) {
           <span className="font-medium text-ink/40 uppercase tracking-widest text-xs">Try reading:</span>
           <button onClick={() => setInput('readtangle.substack.com')} className="hover:text-accent transition">Tangle</button>
           <span className="text-ink/20">•</span>
-          <button onClick={() => setInput('platformer.news')} className="hover:text-accent transition">Platformer</button>
-          <span className="text-ink/20">•</span>
           <button onClick={() => setInput('pragmaticengineer.substack.com')} className="hover:text-accent transition">Pragmatic Engineer</button>
+          <span className="text-ink/20">•</span>
+          <button onClick={() => setInput('demo.ghost.io')} className="hover:text-accent transition">Ghost Demo</button>
+          <span className="text-ink/20">•</span>
+          <button onClick={() => setInput('netflixtechblog.com')} className="hover:text-accent transition">Netflix Tech Blog</button>
         </div>
       </motion.div>
     </div>

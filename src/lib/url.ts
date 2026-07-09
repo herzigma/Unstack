@@ -14,7 +14,7 @@ export function getQueryStrippedPath(location: LocationParts) {
   return `${location.pathname}${location.hash}`;
 }
 
-export function getSharedSubstackInput(search: string) {
+export function getSharedArticleInput(search: string) {
   const params = new URLSearchParams(search);
   const candidates = [params.get('url'), params.get('text'), params.get('title')];
 

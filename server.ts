@@ -1,31 +1,17 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-
-function parseSubstackPreloads(html: string) {
-  const match = html.match(/window\._preloads\s*=\s*JSON\.parse\(("(?:(?:\\.|[^"\\])*)")\)/s);
-  if (!match) {
-    return null;
-  }
-
-  // Substack embeds preload data as JSON.parse("escaped JSON text").
-  const jsonText = JSON.parse(match[1]);
-  return JSON.parse(jsonText);
-}
+import { getFeed } from "./server/feed";
+import { getPost, validateArticleUrl } from "./server/post";
 
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
 
-  // Set up common headers to avoid Cloudflare blocking
-  const fetchHeaders = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json",
-    "Accept-Language": "en-US,en;q=0.9",
-  };
-
   /**
-   * Fetch a Substack feed (recent posts)
+   * Fetch a publication's recent posts (Substack, Ghost, or Medium -- whichever
+   * platform cascade matches first). Platforms with no reliable feed convention
+   * (beehiiv, homegrown blogs) report platform: null rather than erroring.
    */
   app.get("/api/feed", async (req, res) => {
     const domain = req.query.domain;
@@ -34,29 +20,8 @@ async function startServer() {
     }
 
     try {
-      // First try the archive API endpoint
-      const apiUrl = `https://${domain}/api/v1/archive?sort=new&limit=25`;
-      const response = await fetch(apiUrl, { headers: fetchHeaders });
-      
-      const text = await response.text();
-      
-      // Check if it's actually JSON
-      if (text.trim().startsWith("[") || text.trim().startsWith("{")) {
-         return res.json(JSON.parse(text));
-      }
-
-      // If it returned HTML, fallback to scraping the archive page
-      const archiveUrl = `https://${domain}/archive`;
-      const archiveRes = await fetch(archiveUrl, { headers: fetchHeaders });
-      const archiveHtml = await archiveRes.text();
-      
-      const data = parseSubstackPreloads(archiveHtml);
-      if (data) {
-        const posts = data.newPostsForArchive || data.feed || data.posts || data.recentPosts || [];
-        return res.json(posts);
-      }
-      
-      throw new Error(`Substack returned HTML instead of data, and fallback extraction failed. Status: ${response.status}`);
+      const result = await getFeed(domain);
+      res.json(result);
     } catch (error: any) {
       console.error("Feed error:", error);
       res.status(500).json({ error: error.message || "An error occurred fetching the feed" });
@@ -64,39 +29,28 @@ async function startServer() {
   });
 
   /**
-   * Fetch a specific Substack post
+   * Fetch a single article by its full URL. Tries Substack's structured extraction
+   * first, then falls back to generic Readability-based extraction for everything
+   * else (Ghost, Medium, beehiiv, homegrown blogs).
    */
   app.get("/api/post", async (req, res) => {
-    const { domain, slug } = req.query;
-    if (!domain || !slug || typeof domain !== "string" || typeof slug !== "string") {
-      return res.status(400).json({ error: "Missing or invalid domain/slug" });
+    const { url } = req.query;
+    if (!url || typeof url !== "string") {
+      return res.status(400).json({ error: "Missing or invalid url" });
     }
 
     try {
-      // Fetch the actual post HTML page instead of API to ensure we get it
-      const postUrl = `https://${domain}/p/${slug}`;
-      const response = await fetch(postUrl, { headers: fetchHeaders });
-      const text = await response.text();
+      validateArticleUrl(url);
+    } catch (error: any) {
+      return res.status(400).json({ error: error.message });
+    }
 
-      // Check for _preloads in the HTML
-      const data = parseSubstackPreloads(text);
-      if (data) {
-         const post = data.post || data.postDetail || (data.pub && data.pub.post);
-         if (post) {
-            return res.json(post);
-         }
+    try {
+      const post = await getPost(url);
+      if (!post) {
+        return res.status(404).json({ error: "Could not extract an article from this URL." });
       }
-
-      // Fallback: try the API endpoint if HTML scraping didn't find the post
-      const apiUrl = `https://${domain}/api/v1/posts/${slug}`;
-      const apiRes = await fetch(apiUrl, { headers: fetchHeaders });
-      const apiText = await apiRes.text();
-      
-      if (apiText.trim().startsWith("{")) {
-         return res.json(JSON.parse(apiText));
-      }
-
-      throw new Error(`Substack returned HTML, could not extract post data. Status: ${response.status}`);
+      res.json(post);
     } catch (error: any) {
       console.error("Post error:", error);
       res.status(500).json({ error: error.message || "An error occurred fetching the post" });

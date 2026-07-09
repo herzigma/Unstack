@@ -1,6 +1,6 @@
 {
-  "name": "Substack Reader",
-  "description": "A clean, private, lightweight reader for Substack newsletters, inspired by Nitter.",
+  "name": "Unstack Reader",
+  "description": "A clean, private, lightweight reader for Substack, Ghost, and Medium newsletters and articles, inspired by Nitter.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

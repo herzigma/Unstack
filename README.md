@@ -1,18 +1,19 @@
 # Unstack
 
-A modern, distraction-free reader for Substack publications. Unstack gives you a clean, beautiful reading experience with elegant typography, seamless media handling, and intuitive native-like previews for your favorite Substack newsletters.
+A modern, distraction-free reader for newsletters and articles. Unstack gives you a clean, beautiful reading experience with elegant typography, seamless media handling, and intuitive native-like previews -- with first-class support for Substack, Ghost, and Medium, and best-effort reading for beehiiv and homegrown blogs via generic article extraction.
 
 ## Features
 
 - **Distraction-Free Reading:** A minimalist, typography-focused aesthetic that puts the content front and center.
-- **Beautiful Media Handling:** Custom parsing and safe rendering for complex Substack embeds including YouTube, Twitter, and native Substack videos.
+- **Beautiful Media Handling:** Custom parsing and safe rendering for complex embeds including YouTube, Twitter, and native Substack videos.
 - **Paywall Previews:** Elegantly styled placeholders for premium content blocks with clear paths to the original publication.
-- **Substack Discovery:** View feeds and parse individual posts natively directly from an author's domain.
+- **Multi-Platform Feed Browsing:** View recent posts directly from a Substack, Ghost, or Medium domain.
+- **Universal Article Reading:** Paste a direct article link from almost any platform -- including beehiiv and homegrown blogs -- and Unstack will extract a clean reading view via Mozilla's Readability, even without a dedicated feed integration.
 
 ## Tech Stack
 
 - **Frontend:** React 19, Tailwind CSS v4, Lucide React (for iconography), Motion (for smooth layout transitions and animations).
-- **Backend:** Express API proxy for safely fetching Substack feeds while avoiding CORS issues.
+- **Backend:** Express API proxying feed and article fetches. Substack posts are read via its structured preload data; Ghost and Medium feeds are read via their standard RSS endpoints (`rss-parser`); any other article link falls back to generic extraction via `@mozilla/readability` + `jsdom`.
 - **Parser:** `html-react-parser` combined with `dompurify` for secure and customizable transformation of raw HTML into polished React components.
 - **Build Tool:** Vite + esbuild (for compiling the custom API and serving over a single port).
 

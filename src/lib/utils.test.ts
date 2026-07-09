@@ -1,51 +1,58 @@
 import { describe, expect, it } from 'vitest';
-import { parseSubstackInput } from './utils';
+import { parseArticleInput } from './utils';
 
-describe('parseSubstackInput', () => {
+describe('parseArticleInput', () => {
   it('parses bare Substack handles', () => {
-    expect(parseSubstackInput('pragmaticengineer')).toEqual({
+    expect(parseArticleInput('pragmaticengineer')).toEqual({
       domain: 'pragmaticengineer.substack.com',
-      slug: null,
+      url: null,
     });
   });
 
   it('parses full domains', () => {
-    expect(parseSubstackInput('platformer.news')).toEqual({
+    expect(parseArticleInput('platformer.news')).toEqual({
       domain: 'platformer.news',
-      slug: null,
+      url: null,
     });
   });
 
   it('parses full post URLs', () => {
-    expect(parseSubstackInput('https://oligarchwatch.substack.com/p/peter-thiels-secret-society-exposed')).toEqual({
+    expect(parseArticleInput('https://oligarchwatch.substack.com/p/peter-thiels-secret-society-exposed')).toEqual({
       domain: 'oligarchwatch.substack.com',
-      slug: 'peter-thiels-secret-society-exposed',
+      url: 'https://oligarchwatch.substack.com/p/peter-thiels-secret-society-exposed',
     });
   });
 
   it('parses path-style post inputs', () => {
-    expect(parseSubstackInput('oligarchwatch.substack.com/p/peter-thiels-secret-society-exposed')).toEqual({
+    expect(parseArticleInput('oligarchwatch.substack.com/p/peter-thiels-secret-society-exposed')).toEqual({
       domain: 'oligarchwatch.substack.com',
-      slug: 'peter-thiels-secret-society-exposed',
+      url: 'https://oligarchwatch.substack.com/p/peter-thiels-secret-society-exposed',
+    });
+  });
+
+  it('parses arbitrary (non-Substack) path shapes as direct article links', () => {
+    expect(parseArticleInput('blog.example.com/2024/01/some-post/')).toEqual({
+      domain: 'blog.example.com',
+      url: 'https://blog.example.com/2024/01/some-post/',
     });
   });
 
   it('fixes malformed single-slash protocols', () => {
-    expect(parseSubstackInput('https:/readtangle.substack.com/p/example-post')).toEqual({
+    expect(parseArticleInput('https:/readtangle.substack.com/p/example-post')).toEqual({
       domain: 'readtangle.substack.com',
-      slug: 'example-post',
+      url: 'https://readtangle.substack.com/p/example-post',
     });
   });
 
-  it('ignores query strings while parsing Substack URLs', () => {
-    expect(parseSubstackInput('https://readtangle.substack.com/p/example-post?utm_source=feed')).toEqual({
+  it('keeps query strings as part of the resolved article url', () => {
+    expect(parseArticleInput('https://readtangle.substack.com/p/example-post?utm_source=feed')).toEqual({
       domain: 'readtangle.substack.com',
-      slug: 'example-post',
+      url: 'https://readtangle.substack.com/p/example-post?utm_source=feed',
     });
   });
 
   it('returns null for empty or invalid input', () => {
-    expect(parseSubstackInput('')).toBeNull();
-    expect(parseSubstackInput('https://')).toBeNull();
+    expect(parseArticleInput('')).toBeNull();
+    expect(parseArticleInput('https://')).toBeNull();
   });
 });

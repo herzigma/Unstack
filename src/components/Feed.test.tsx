@@ -1,20 +1,19 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Feed } from './Feed';
-import { SubstackPostItem } from '../types';
+import { NormalizedPostSummary } from '../types';
 
-const post: SubstackPostItem = {
-  id: 1,
+const post: NormalizedPostSummary = {
+  id: '1',
   title: 'A useful dispatch',
   subtitle: 'A sharp subtitle',
-  slug: 'useful-dispatch',
-  post_date: '2026-06-24T12:00:00.000Z',
-  audience: 'everyone',
-  canonical_url: 'https://example.substack.com/p/useful-dispatch',
+  publishedAt: '2026-06-24T12:00:00.000Z',
+  isPaywalled: false,
+  canonicalUrl: 'https://example.substack.com/p/useful-dispatch',
   description: 'Description',
-  type: 'newsletter',
-  publishedBylines: [{ id: 1, name: 'Reporter' }],
+  authors: [{ id: '1', name: 'Reporter' }],
+  platform: 'substack',
 };
 
 function mockFetch(data: unknown, ok = true) {
@@ -39,7 +38,7 @@ describe('Feed', () => {
   it('renders fetched posts and handles post clicks', async () => {
     const user = userEvent.setup();
     const onPostClick = vi.fn();
-    mockFetch([post]);
+    mockFetch({ platform: 'substack', posts: [post] });
 
     render(<Feed domain="example.substack.com" onNavigate={vi.fn()} onPostClick={onPostClick} />);
 
@@ -47,15 +46,24 @@ describe('Feed', () => {
     expect(screen.getByText('A sharp subtitle')).toBeInTheDocument();
 
     await user.click(screen.getByRole('heading', { name: 'A useful dispatch' }));
-    expect(onPostClick).toHaveBeenCalledWith('useful-dispatch');
+    expect(onPostClick).toHaveBeenCalledWith('https://example.substack.com/p/useful-dispatch');
   });
 
-  it('renders the empty feed state', async () => {
-    mockFetch([]);
+  it('renders the empty feed state for a known platform with no posts', async () => {
+    mockFetch({ platform: 'substack', posts: [] });
 
     render(<Feed domain="example.substack.com" onNavigate={vi.fn()} onPostClick={vi.fn()} />);
 
     expect(await screen.findByText('No recent posts found for this newsletter.')).toBeInTheDocument();
+  });
+
+  it('steers toward a direct link when no feed convention matched', async () => {
+    mockFetch({ platform: null, posts: [] });
+
+    render(<Feed domain="example.beehiiv.com" onNavigate={vi.fn()} onPostClick={vi.fn()} />);
+
+    expect(await screen.findByText("This site doesn't support feed browsing.")).toBeInTheDocument();
+    expect(screen.getByText('Try pasting a direct article link instead.')).toBeInTheDocument();
   });
 
   it('renders fetch errors and lets users return to search', async () => {
@@ -76,15 +84,5 @@ describe('Feed', () => {
 
     await user.click(screen.getByRole('button', { name: 'Try another feed' }));
     expect(onNavigate).toHaveBeenCalledWith('', null);
-  });
-
-  it('renders invalid feed responses as errors', async () => {
-    mockFetch({ posts: [] });
-
-    render(<Feed domain="example.substack.com" onNavigate={vi.fn()} onPostClick={vi.fn()} />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Invalid feed format received.')).toBeInTheDocument();
-    });
   });
 });
