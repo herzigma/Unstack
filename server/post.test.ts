@@ -79,6 +79,29 @@ describe('getPost', () => {
     expect(result?.bodyHtml).toBe('<p>Body</p>');
   });
 
+  it('flags archiveWorthChecking for a Substack preview-only paid post even with a long preview', async () => {
+    const paragraph = 'This is a long enough preview paragraph to clear the thin-content threshold on its own. ';
+    const preloadPost = {
+      id: 2,
+      title: 'A Paid Substack Post',
+      slug: 'a-paid-post',
+      post_date: '2026-01-01T00:00:00.000Z',
+      audience: 'only_paid',
+      canonical_url: 'https://example.substack.com/p/a-paid-post',
+      description: 'desc',
+      type: 'newsletter',
+      body_html: `<p>${paragraph.repeat(25)}</p>`,
+    };
+    const preloadJson = JSON.stringify({ post: preloadPost });
+    const html = `<script>window._preloads = JSON.parse(${JSON.stringify(preloadJson)})</script>`;
+    mockFetchOnce(html);
+
+    const result = await getPost('https://example.substack.com/p/a-paid-post');
+
+    expect(result?.isPreviewOnly).toBe(true);
+    expect(result?.archiveWorthChecking).toBe(true);
+  });
+
   it('falls back to generic Readability extraction for non-Substack HTML', async () => {
     const paragraph =
       'This is a substantive sentence written to give Readability enough text to score this block as the main content. ';
@@ -97,5 +120,46 @@ describe('getPost', () => {
     const result = await getPost('https://blog.example.com/unreachable');
 
     expect(result).toBeNull();
+  });
+
+  it('flags archiveWorthChecking when JSON-LD declares isAccessibleForFree: false', async () => {
+    const paragraph = 'A short stub sentence before the sign-in wall kicks in. ';
+    const html = `<html><head><title>Stub</title><script type="application/ld+json">{"isAccessibleForFree": false}</script></head><body><article><h1>Stub</h1><p>${paragraph.repeat(3)}</p></article></body></html>`;
+    mockFetchOnce(html);
+
+    const result = await getPost('https://news.example.com/paywalled-article');
+
+    expect(result?.archiveWorthChecking).toBe(true);
+  });
+
+  it('flags archiveWorthChecking when the extracted text is thin', async () => {
+    const html = `<html><head><title>Thin</title></head><body><article><h1>Thin</h1><p>Just a headline and one short line.</p></article></body></html>`;
+    mockFetchOnce(html);
+
+    const result = await getPost('https://news.example.com/thin-article');
+
+    expect(result?.archiveWorthChecking).toBe(true);
+  });
+
+  it('does not flag archiveWorthChecking for a normal, substantial article', async () => {
+    const paragraph =
+      'This is a substantive sentence written to give Readability enough text to score this block as the main content. ';
+    const html = `<html><head><title>Full Article</title></head><body><article><h1>Full Article</h1><p>${paragraph.repeat(30)}</p></article></body></html>`;
+    mockFetchOnce(html);
+
+    const result = await getPost('https://blog.example.com/full-article');
+
+    expect(result?.archiveWorthChecking).toBe(false);
+  });
+
+  it('returns an archive-eligible stub instead of null when generic extraction fails entirely', async () => {
+    mockFetchOnce('<html><head><title>Sign in required</title></head><body></body></html>');
+
+    const result = await getPost('https://news.example.com/behind-a-wall');
+
+    expect(result).not.toBeNull();
+    expect(result?.bodyHtml).toBe('');
+    expect(result?.archiveWorthChecking).toBe(true);
+    expect(result?.title).toBe('Sign in required');
   });
 });

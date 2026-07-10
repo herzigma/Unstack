@@ -1,0 +1,33 @@
+name: Archive.is Drift Check
+
+# Live smoke test for the archive.is scraping in server/platforms/archive.ts.
+# Runs on a weekly schedule (not on every push) since it makes real requests to
+# archive.is -- running it per-push would risk the same rate-limiting the scraper
+# works around, and would make ordinary CI flaky against an external site's uptime.
+#
+# GitHub automatically emails repo watchers when a scheduled workflow run fails,
+# so no extra notification setup is needed here.
+on:
+  schedule:
+    - cron: "0 13 * * 1" # Mondays at 13:00 UTC
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check archive.is scraping for drift
+        run: npm run check:archive-drift

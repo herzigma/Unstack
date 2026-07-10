@@ -3,6 +3,19 @@ import * as generic from "./platforms/generic";
 import { fetchHeaders, fetchWithTimeout } from "./http";
 import type { NormalizedPostDetail } from "../src/types";
 
+const THIN_CONTENT_THRESHOLD = 1500;
+const PAYWALL_METADATA_PATTERN =
+  /"isAccessibleForFree"\s*:\s*(false|"false")|property="article:content_tier"[^>]*content="locked"|content="locked"[^>]*property="article:content_tier"/i;
+
+function estimateTextLength(html: string): number {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().length;
+}
+
+function extractRawTitle(html: string): string {
+  const match = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+  return match ? match[1].trim() : "Untitled";
+}
+
 const PRIVATE_HOSTNAME_PATTERNS = [
   /^localhost$/i,
   /^127\./,
@@ -37,18 +50,48 @@ export async function getPost(url: string): Promise<NormalizedPostDetail | null>
   try {
     const response = await fetchWithTimeout(url, { headers: fetchHeaders });
     const html = await response.text();
+    const hasPaywallMetadata = PAYWALL_METADATA_PATTERN.test(html);
 
     const substackRaw = substack.extractPostFromHtml(html);
     if (substackRaw) {
-      return substack.normalizeDetail(substackRaw);
+      const detail = substack.normalizeDetail(substackRaw);
+      return {
+        ...detail,
+        archiveWorthChecking: detail.isPreviewOnly || estimateTextLength(detail.bodyHtml) < THIN_CONTENT_THRESHOLD,
+      };
     }
 
     const substackApiRaw = await substack.fetchPostFallbackApi(url);
     if (substackApiRaw) {
-      return substack.normalizeDetail(substackApiRaw);
+      const detail = substack.normalizeDetail(substackApiRaw);
+      return {
+        ...detail,
+        archiveWorthChecking: detail.isPreviewOnly || estimateTextLength(detail.bodyHtml) < THIN_CONTENT_THRESHOLD,
+      };
     }
 
-    return generic.extractPost(html, url);
+    const genericDetail = generic.extractPost(html, url);
+    if (!genericDetail) {
+      // Readability found nothing at all -- return a stub rather than a bare failure
+      // so the client still has a canonicalUrl/title to try an archive.is rescue with.
+      return {
+        id: url,
+        title: extractRawTitle(html),
+        publishedAt: "",
+        isPaywalled: false,
+        canonicalUrl: url,
+        platform: "generic",
+        bodyHtml: "",
+        isPreviewOnly: false,
+        siteName: new URL(url).hostname,
+        archiveWorthChecking: true,
+      };
+    }
+
+    return {
+      ...genericDetail,
+      archiveWorthChecking: hasPaywallMetadata || estimateTextLength(genericDetail.bodyHtml) < THIN_CONTENT_THRESHOLD,
+    };
   } catch (error) {
     console.error("Post fetch error:", error);
     return null;

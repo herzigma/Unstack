@@ -106,4 +106,80 @@ describe('Post', () => {
       basePost.canonicalUrl,
     );
   });
+
+  describe('archive.is fallback', () => {
+    const archiveSnapshot = {
+      snapshotUrl: 'https://archive.is/339i0',
+      snapshotDate: '10 Jul 2026 09:55',
+      bodyHtml: '<p>The full, unpaywalled article body from archive.is.</p>',
+      textLength: 9459,
+    };
+
+    function mockPostThenArchive(post: unknown, archiveStatus: number, archiveBody?: unknown) {
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url.startsWith('/api/post')) {
+          return Promise.resolve({ ok: true, json: vi.fn().mockResolvedValue(post) });
+        }
+        return Promise.resolve({
+          status: archiveStatus,
+          json: vi.fn().mockResolvedValue(archiveBody),
+        });
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      return fetchMock;
+    }
+
+    it('swaps in the archive.is copy when the post is flagged as worth checking', async () => {
+      mockPostThenArchive(
+        { ...basePost, bodyHtml: '<p>Stub only.</p>', archiveWorthChecking: true },
+        200,
+        archiveSnapshot,
+      );
+
+      render(<Post domain="washingtonpost.com" url={basePost.canonicalUrl} onBack={vi.fn()} />);
+
+      expect(await screen.findByText('Stub only.')).toBeInTheDocument();
+      expect(await screen.findByText(/Fuller copy found on archive.is/)).toBeInTheDocument();
+      expect(await screen.findByText('The full, unpaywalled article body from archive.is.')).toBeInTheDocument();
+    });
+
+    it('lets the reader toggle back to the original after a swap', async () => {
+      const user = userEvent.setup();
+      mockPostThenArchive(
+        { ...basePost, bodyHtml: '<p>Stub only.</p>', archiveWorthChecking: true },
+        200,
+        archiveSnapshot,
+      );
+
+      render(<Post domain="washingtonpost.com" url={basePost.canonicalUrl} onBack={vi.fn()} />);
+      await screen.findByText('The full, unpaywalled article body from archive.is.');
+
+      await user.click(screen.getByRole('button', { name: /show original instead/i }));
+
+      expect(screen.getByText('Stub only.')).toBeInTheDocument();
+      expect(screen.getByText('Showing the original article.')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: /show archived copy/i }));
+      expect(screen.getByText('The full, unpaywalled article body from archive.is.')).toBeInTheDocument();
+    });
+
+    it('does not check archive.is when the post is not flagged', async () => {
+      const fetchMock = mockPostThenArchive({ ...basePost, archiveWorthChecking: false }, 204);
+
+      render(<Post domain="oligarchwatch.substack.com" url={basePost.canonicalUrl} onBack={vi.fn()} />);
+
+      await screen.findByText('Inside the story.');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/api/archive'));
+    });
+
+    it('leaves the page unchanged when archive.is has no better copy (204)', async () => {
+      mockPostThenArchive({ ...basePost, bodyHtml: '<p>Stub only.</p>', archiveWorthChecking: true }, 204);
+
+      render(<Post domain="washingtonpost.com" url={basePost.canonicalUrl} onBack={vi.fn()} />);
+
+      await screen.findByText('Stub only.');
+      expect(screen.queryByText(/Fuller copy found on archive.is/)).not.toBeInTheDocument();
+    });
+  });
 });

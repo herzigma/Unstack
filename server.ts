@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { getFeed } from "./server/feed";
 import { getPost, validateArticleUrl } from "./server/post";
+import { getArchiveCandidate, meetsGainThreshold } from "./server/platforms/archive";
 
 async function startServer() {
   const app = express();
@@ -54,6 +55,38 @@ async function startServer() {
     } catch (error: any) {
       console.error("Post error:", error);
       res.status(500).json({ error: error.message || "An error occurred fetching the post" });
+    }
+  });
+
+  /**
+   * Background archive.is lookup for a post the client already flagged as
+   * paywalled/thin/failed (see archiveWorthChecking on /api/post). Only returns a
+   * candidate when it's substantially fuller than what the client already has --
+   * see meetsGainThreshold.
+   */
+  app.get("/api/archive", async (req, res) => {
+    const { url, originalLength } = req.query;
+    if (!url || typeof url !== "string") {
+      return res.status(400).json({ error: "Missing or invalid url" });
+    }
+
+    try {
+      validateArticleUrl(url);
+    } catch (error: any) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    const originalTextLength = Number(originalLength) || 0;
+
+    try {
+      const candidate = await getArchiveCandidate(url);
+      if (!candidate || !meetsGainThreshold(candidate.textLength, originalTextLength)) {
+        return res.status(204).end();
+      }
+      res.json(candidate);
+    } catch (error: any) {
+      console.error("Archive lookup error:", error);
+      res.status(204).end();
     }
   });
 

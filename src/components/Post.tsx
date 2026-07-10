@@ -1,11 +1,21 @@
-import React, { useEffect, useState } from 'react';
-import { NormalizedPostDetail } from '../types';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ArchiveSnapshot, NormalizedPostDetail } from '../types';
 import { format } from 'date-fns';
-import { ArrowLeft, Loader2, Share, FileText, Lock, PlayCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Share, FileText, Lock, PlayCircle, ExternalLink } from 'lucide-react';
 import { motion } from 'motion/react';
 import parse, { HTMLReactParserOptions, Element } from 'html-react-parser';
 import DOMPurify from 'dompurify';
 import { formatDocumentTitle } from '../lib/title';
+
+function estimateTextLength(html: string): number {
+  return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().length;
+}
+
+const BLOCK_SELECTOR = 'p, h1, h2, h3, h4, blockquote, li';
+
+function normalizedPrefix(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().slice(0, 60);
+}
 
 interface PostProps {
   domain: string;
@@ -32,11 +42,19 @@ export function Post({ domain, url, onBack }: PostProps) {
   // Progress bar
   const [scrollProgress, setScrollProgress] = useState(0);
 
+  // Background archive.is fallback
+  const [archiveSnapshot, setArchiveSnapshot] = useState<ArchiveSnapshot | null>(null);
+  const [showOriginalInstead, setShowOriginalInstead] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const pendingScrollAnchor = useRef<{ prefix: string; offsetTop: number; scrollY: number } | null>(null);
+
   useEffect(() => {
     async function fetchPost() {
       setLoading(true);
       setError('');
       setPost(null);
+      setArchiveSnapshot(null);
+      setShowOriginalInstead(false);
       document.title = formatDocumentTitle('Loading post');
       try {
         const res = await fetch(`/api/post?url=${encodeURIComponent(url)}`);
@@ -53,6 +71,65 @@ export function Post({ domain, url, onBack }: PostProps) {
     }
     fetchPost();
   }, [url]);
+
+  // Once the (fast) article render is on screen, check archive.is in the background
+  // for paywalled/thin/failed extractions and swap in a fuller copy if one exists.
+  useEffect(() => {
+    if (!post?.archiveWorthChecking) return;
+    let cancelled = false;
+
+    async function checkArchive() {
+      try {
+        const originalLength = estimateTextLength(post!.bodyHtml);
+        const res = await fetch(
+          `/api/archive?url=${encodeURIComponent(url)}&originalLength=${originalLength}`,
+        );
+        if (cancelled || res.status !== 200) return;
+        const snapshot: ArchiveSnapshot = await res.json();
+
+        // Capture where the reader currently is so the swap doesn't move them.
+        const container = contentRef.current;
+        const anchor = container
+          ? [...container.querySelectorAll(BLOCK_SELECTOR)].find(
+              (el) => el.getBoundingClientRect().bottom > 0,
+            )
+          : null;
+        pendingScrollAnchor.current = {
+          prefix: anchor ? normalizedPrefix(anchor.textContent || '') : '',
+          offsetTop: anchor ? anchor.getBoundingClientRect().top : 0,
+          scrollY: window.scrollY,
+        };
+
+        if (!cancelled) setArchiveSnapshot(snapshot);
+      } catch {
+        // archive.is being unreachable or rate-limited should never break the page.
+      }
+    }
+    checkArchive();
+    return () => {
+      cancelled = true;
+    };
+  }, [post, url]);
+
+  // Restore the reader's scroll position after the archive copy swaps in.
+  useLayoutEffect(() => {
+    const anchor = pendingScrollAnchor.current;
+    if (!archiveSnapshot || showOriginalInstead || !anchor) return;
+    pendingScrollAnchor.current = null;
+
+    const container = contentRef.current;
+    const match = anchor.prefix
+      ? [...(container?.querySelectorAll(BLOCK_SELECTOR) || [])].find((el) =>
+          normalizedPrefix(el.textContent || '').startsWith(anchor.prefix.slice(0, 30)),
+        )
+      : null;
+
+    if (match) {
+      window.scrollBy(0, match.getBoundingClientRect().top - anchor.offsetTop);
+    } else {
+      window.scrollTo(0, anchor.scrollY);
+    }
+  }, [archiveSnapshot, showOriginalInstead]);
 
   useEffect(() => {
     if (post?.title) {
@@ -148,6 +225,9 @@ export function Post({ domain, url, onBack }: PostProps) {
   }
 
   const platformName = platformDisplayName(post);
+  const isShowingArchive = !!archiveSnapshot && !showOriginalInstead;
+  const displayBodyHtml = isShowingArchive ? archiveSnapshot!.bodyHtml : post.bodyHtml;
+  const displayIsPreviewOnly = isShowingArchive ? false : post.isPreviewOnly;
 
   return (
     <div className="min-h-screen bg-paper pb-32">
@@ -235,17 +315,46 @@ export function Post({ domain, url, onBack }: PostProps) {
           </motion.div>
         )}
 
+        {archiveSnapshot && (
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent/30 bg-accent/5 px-4 py-3 text-sm">
+            <div className="flex items-center gap-2 text-ink-light">
+              <FileText size={16} className="text-accent shrink-0" />
+              <span>
+                {showOriginalInstead
+                  ? 'Showing the original article.'
+                  : `Fuller copy found on archive.is${archiveSnapshot.snapshotDate ? ` (${archiveSnapshot.snapshotDate})` : ''}.`}
+              </span>
+            </div>
+            <div className="flex items-center gap-4 shrink-0">
+              <a
+                href={showOriginalInstead ? archiveSnapshot.snapshotUrl : post.canonicalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-ink-light hover:text-accent transition-colors underline underline-offset-4"
+              >
+                View {showOriginalInstead ? 'archived copy' : 'original'} <ExternalLink size={12} />
+              </a>
+              <button
+                onClick={() => setShowOriginalInstead((v) => !v)}
+                className="font-medium text-accent hover:text-ink transition-colors"
+              >
+                {showOriginalInstead ? 'Show archived copy' : 'Show original instead'}
+              </button>
+            </div>
+          </div>
+        )}
+
         <motion.article
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.2 }}
           className="reader-content"
         >
-          {post.bodyHtml ? (
-             <div className="prose prose-lg max-w-none pb-10">
-                 {parse(getCleanHtml(post.bodyHtml), parseOptions)}
+          {displayBodyHtml ? (
+             <div ref={contentRef} className="prose prose-lg max-w-none pb-10">
+                 {parse(getCleanHtml(displayBodyHtml), parseOptions)}
 
-                 {post.isPreviewOnly && (
+                 {displayIsPreviewOnly && (
                    <div className="mt-12 py-10 px-8 text-center bg-white border border-dashed border-ink/20 rounded-lg shadow-sm">
                       <Lock className="mx-auto text-ink/20 mb-4" size={32} />
                       <h3 className="text-xl font-serif font-bold text-ink mb-2">Premium Content</h3>
