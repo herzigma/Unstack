@@ -35,14 +35,14 @@ function meta(property: string, content: string, useName = false): string {
   return `<meta ${attribute}="${property}" content="${escapeAttribute(content)}" />`;
 }
 
-function previewSiteName(post: NormalizedPostDetail): string {
-  if (post.siteName) return `[Unstack] ${post.siteName}`;
+function publicationName(post: NormalizedPostDetail): string {
+  if (post.siteName) return post.siteName;
 
   try {
     const hostname = new URL(post.canonicalUrl).hostname.replace(/^www\./i, "");
-    return `[Unstack] ${hostname}`;
+    return hostname;
   } catch {
-    return "Unstack";
+    return "Original publication";
   }
 }
 
@@ -52,15 +52,17 @@ export function injectSocialPreview(
   unstackUrl: string,
 ): string {
   const description = post.description || post.subtitle || `Read ${post.title} in Unstack.`;
+  const publication = publicationName(post);
+  const previewTitle = `[Unstack] ${post.title} | ${publication}`;
   const tags = [
     `<link rel="canonical" href="${escapeAttribute(unstackUrl)}" />`,
     '<meta property="og:type" content="article" />',
-    meta("og:site_name", previewSiteName(post)),
-    meta("og:title", post.title),
+    meta("og:site_name", publication),
+    meta("og:title", previewTitle),
     meta("og:description", description),
     meta("og:url", unstackUrl),
     meta("twitter:card", post.coverImage ? "summary_large_image" : "summary", true),
-    meta("twitter:title", post.title, true),
+    meta("twitter:title", previewTitle, true),
     meta("twitter:description", description, true),
   ];
 
@@ -84,7 +86,7 @@ export function injectSocialPreview(
         articleDescription,
       )
     : withoutStaticSocialTags.replace("</head>", `  ${articleDescription}\n</head>`);
-  const title = `<title>${escapeAttribute(post.title)} | Unstack</title>`;
+  const title = `<title>${escapeAttribute(previewTitle)}</title>`;
   const withTitle = /<title[^>]*>.*?<\/title>/is.test(withDescription)
     ? withDescription.replace(/<title[^>]*>.*?<\/title>/is, title)
     : withDescription.replace("</head>", `  ${title}\n</head>`);

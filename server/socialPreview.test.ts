@@ -39,9 +39,10 @@ describe('social previews', () => {
     const html = '<html><head><meta property="og:title" content="Unstack"><title>Unstack</title></head><body></body></html>';
     const result = injectSocialPreview(html, post, 'https://unstack.wtf/www.theatlantic.com/story');
 
-    expect(result).toContain('<title>Democrats Became Great by Fighting the Left | Unstack</title>');
-    expect(result).toContain('property="og:title" content="Democrats Became Great by Fighting the Left"');
-    expect(result).toContain('property="og:site_name" content="[Unstack] The Atlantic"');
+    expect(result).toContain('<title>[Unstack] Democrats Became Great by Fighting the Left | The Atlantic</title>');
+    expect(result).toContain('property="og:title" content="[Unstack] Democrats Became Great by Fighting the Left | The Atlantic"');
+    expect(result).toContain('property="og:site_name" content="The Atlantic"');
+    expect(result).toContain('name="twitter:title" content="[Unstack] Democrats Became Great by Fighting the Left | The Atlantic"');
     expect(result).toContain('property="og:description" content="In the DSA era, liberals need to remember their history."');
     expect(result).toContain('property="og:image" content="https://cdn.theatlantic.com/media/img.jpg"');
     expect(result).toContain('name="twitter:card" content="summary_large_image"');
@@ -58,7 +59,8 @@ describe('social previews', () => {
       'https://unstack.wtf/story',
     );
 
-    expect(result).toContain('property="og:site_name" content="[Unstack] theatlantic.com"');
+    expect(result).toContain('property="og:title" content="[Unstack] Democrats Became Great by Fighting the Left | theatlantic.com"');
+    expect(result).toContain('property="og:site_name" content="theatlantic.com"');
   });
 
   it('escapes publisher-provided values before inserting them into HTML', () => {
