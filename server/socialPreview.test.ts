@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { articleUrlFromPath, injectSocialPreview, isSocialPreviewBot } from './socialPreview';
+import { articleUrlForPreviewRequest, articleUrlFromPath, injectSocialPreview } from './socialPreview';
 import type { NormalizedPostDetail } from '../src/types';
 
 const post: NormalizedPostDetail = {
@@ -17,18 +17,21 @@ const post: NormalizedPostDetail = {
 };
 
 describe('social previews', () => {
-  it('recognizes Slack and Discord link-expanding crawlers', () => {
-    expect(isSocialPreviewBot('Slackbot-LinkExpanding 1.0')).toBe(true);
-    expect(isSocialPreviewBot('Mozilla/5.0 Discordbot/2.0')).toBe(true);
-    expect(isSocialPreviewBot('Mozilla/5.0 Chrome/120')).toBe(false);
-  });
-
   it('reconstructs the original article URL from an Unstack path', () => {
     expect(articleUrlFromPath('/www.theatlantic.com/ideas/archive/2026/07/story/687839/')).toBe(
       'https://www.theatlantic.com/ideas/archive/2026/07/story/687839/',
     );
     expect(articleUrlFromPath('/assets/index.js')).toBeNull();
     expect(articleUrlFromPath('/publisher.example')).toBeNull();
+  });
+
+  it('renders metadata for every GET article request without user-agent gating', () => {
+    const path = '/www.theatlantic.com/magazine/2026/08/reading-crisis/687618/';
+
+    expect(articleUrlForPreviewRequest('GET', path)).toBe(
+      'https://www.theatlantic.com/magazine/2026/08/reading-crisis/687618/',
+    );
+    expect(articleUrlForPreviewRequest('HEAD', path)).toBeNull();
   });
 
   it('injects escaped Open Graph and Twitter metadata from the original post', () => {

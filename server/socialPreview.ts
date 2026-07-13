@@ -1,13 +1,6 @@
 import type { NormalizedPostDetail } from "../src/types";
 import { parseArticleInput } from "../src/lib/utils";
 
-const SOCIAL_BOT_PATTERN =
-  /Slackbot-LinkExpanding|Discordbot|Twitterbot|facebookexternalhit|LinkedInBot|WhatsApp|TelegramBot|Mastodon|Bluesky|Pinterestbot|Googlebot|bingbot/i;
-
-export function isSocialPreviewBot(userAgent: string | undefined): boolean {
-  return SOCIAL_BOT_PATTERN.test(userAgent || "");
-}
-
 export function articleUrlFromPath(pathname: string): string | null {
   let input: string;
   try {
@@ -21,6 +14,11 @@ export function articleUrlFromPath(pathname: string): string | null {
 
   const parsed = parseArticleInput(input);
   return parsed?.url || null;
+}
+
+/** Article previews are part of the HTML contract, independent of user-agent. */
+export function articleUrlForPreviewRequest(method: string, pathname: string): string | null {
+  return method.toUpperCase() === "GET" ? articleUrlFromPath(pathname) : null;
 }
 
 function escapeAttribute(value: string): string {

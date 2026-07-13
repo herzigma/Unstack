@@ -5,7 +5,12 @@ import { createServer as createViteServer } from "vite";
 import { getFeed } from "./server/feed";
 import { getPost, validateArticleUrl } from "./server/post";
 import { getArchiveCandidate, meetsGainThreshold } from "./server/platforms/archive";
-import { articleUrlFromPath, injectSocialPreview, isSocialPreviewBot } from "./server/socialPreview";
+import {
+  articleUrlForPreviewRequest,
+  articleUrlFromPath,
+  injectSocialPreview,
+} from "./server/socialPreview";
+import { cachePreviewPost, takePreviewPost } from "./server/previewPostCache";
 
 function publicRequestUrl(req: express.Request): string {
   const forwardedProtocol = req.get("x-forwarded-proto")?.split(",")[0].trim();
@@ -14,15 +19,16 @@ function publicRequestUrl(req: express.Request): string {
 }
 
 async function addSocialPreview(html: string, req: express.Request): Promise<string> {
-  if (!isSocialPreviewBot(req.get("user-agent"))) return html;
-
-  const articleUrl = articleUrlFromPath(req.path);
+  const articleUrl = articleUrlForPreviewRequest(req.method, req.path);
   if (!articleUrl) return html;
 
   try {
     validateArticleUrl(articleUrl);
     const post = await getPost(articleUrl);
-    return post ? injectSocialPreview(html, post, publicRequestUrl(req)) : html;
+    if (!post) return html;
+
+    cachePreviewPost(articleUrl, post);
+    return injectSocialPreview(html, post, publicRequestUrl(req));
   } catch (error) {
     console.error("Social preview error:", error);
     return html;
@@ -71,7 +77,7 @@ async function startServer() {
     }
 
     try {
-      const post = await getPost(url);
+      const post = takePreviewPost(url) || await getPost(url);
       if (!post) {
         return res.status(404).json({ error: "Could not extract an article from this URL." });
       }
@@ -121,17 +127,16 @@ async function startServer() {
       appType: "spa",
     });
 
-    // Vite normally owns the HTML response in development. Intercept only social
-    // crawler requests so local preview checks exercise the same metadata path.
+    // Vite normally owns the HTML response in development. Intercept article
+    // routes so their initial HTML contains the same metadata as production.
     app.use(async (req, res, next) => {
-      if (req.method !== "GET" || !isSocialPreviewBot(req.get("user-agent"))) return next();
-      if (!articleUrlFromPath(req.path)) return next();
+      if (!articleUrlForPreviewRequest(req.method, req.path)) return next();
 
       try {
         const source = await readFile(path.join(process.cwd(), "index.html"), "utf8");
         const transformed = await vite.transformIndexHtml(req.originalUrl, source);
         const html = await addSocialPreview(transformed, req);
-        res.vary("User-Agent").set("Cache-Control", "public, max-age=300").type("html").send(html);
+        res.set("Cache-Control", "public, max-age=300").type("html").send(html);
       } catch (error) {
         next(error);
       }
@@ -143,8 +148,7 @@ async function startServer() {
     app.get("*", async (req, res, next) => {
       try {
         const indexPath = path.join(distPath, "index.html");
-        res.vary("User-Agent");
-        if (!isSocialPreviewBot(req.get("user-agent")) || !articleUrlFromPath(req.path)) {
+        if (!articleUrlFromPath(req.path)) {
           return res.sendFile(indexPath);
         }
 
