@@ -1,9 +1,11 @@
 name: Archive.is Drift Check
 
-# Live smoke test for the archive.is scraping in server/platforms/archive.ts.
+# Live drift probe for the archive.is scraping in server/platforms/archive.ts.
 # Runs on a weekly schedule (not on every push) since it makes real requests to
 # archive.is -- running it per-push would risk the same rate-limiting the scraper
 # works around, and would make ordinary CI flaky against an external site's uptime.
+# Hosting-network blocks are reported as INCONCLUSIVE and do not fail the job;
+# only an explicit known-snapshot miss or recognizable parser drift fails it.
 #
 # GitHub automatically emails repo watchers when a scheduled workflow run fails,
 # so no extra notification setup is needed here.
@@ -31,3 +33,6 @@ jobs:
 
       - name: Check archive.is scraping for drift
         run: npm run check:archive-drift
+        env:
+          HTML_FETCH_PROXY_URL: ${{ secrets.HTML_FETCH_PROXY_URL }}
+          HTML_FETCH_PROXY_TOKEN: ${{ secrets.HTML_FETCH_PROXY_TOKEN }}

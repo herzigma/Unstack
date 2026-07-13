@@ -180,6 +180,37 @@ describe('Post', () => {
 
       await screen.findByText('Stub only.');
       expect(screen.queryByText(/Fuller copy found on archive.is/)).not.toBeInTheDocument();
+      expect(
+        await screen.findByText(/Showing what Unstack could retrieve from the original source/),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /check archive\.is/i })).toHaveAttribute(
+        'href',
+        `https://archive.is/search/?q=${encodeURIComponent(basePost.canonicalUrl)}`,
+      );
+    });
+
+    it('keeps the original content and links to archive.is when the lookup request fails', async () => {
+      const fetchMock = vi.fn().mockImplementation((requestUrl: string) => {
+        if (requestUrl.startsWith('/api/post')) {
+          return Promise.resolve({
+            ok: true,
+            json: vi.fn().mockResolvedValue({
+              ...basePost,
+              bodyHtml: '<p>Original-source preview.</p>',
+              archiveWorthChecking: true,
+            }),
+          });
+        }
+        return Promise.reject(new Error('archive unavailable'));
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(<Post domain="washingtonpost.com" url={basePost.canonicalUrl} onBack={vi.fn()} />);
+
+      expect(await screen.findByText('Original-source preview.')).toBeInTheDocument();
+      const archiveLink = await screen.findByRole('link', { name: /check archive\.is/i });
+      expect(archiveLink).toHaveAttribute('target', '_blank');
+      expect(archiveLink).toHaveAttribute('rel', 'noopener noreferrer');
     });
   });
 });

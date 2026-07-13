@@ -1,4 +1,4 @@
-import { findSnapshot, fetchSnapshot } from "../server/platforms/archive";
+import { findSnapshotDetailed, fetchSnapshotDetailed } from "../server/platforms/archive";
 
 /**
  * A URL with a long-lived archive.is snapshot (confirmed present as of 2026-07-10).
@@ -19,26 +19,47 @@ const KNOWN_ARCHIVED_URL =
 async function main() {
   console.log(`Checking archive.is scraping against: ${KNOWN_ARCHIVED_URL}`);
 
-  const lookup = await findSnapshot(KNOWN_ARCHIVED_URL);
-  if (!lookup) {
-    console.error(
-      "FAIL: findSnapshot() found no snapshot for a URL known to have one. " +
-        "archive.is likely changed its /search/ page markup (e.g. the #row0 structure) or is blocking this request.",
-    );
-    process.exitCode = 1;
+  const lookupResult = await findSnapshotDetailed(KNOWN_ARCHIVED_URL);
+  if (!lookupResult.snapshot) {
+    console.error(`  lookup status: ${lookupResult.status}`);
+    for (const diagnostic of lookupResult.diagnostics) {
+      console.error(`  ${JSON.stringify(diagnostic)}`);
+    }
+
+    if (lookupResult.status === "drift" || lookupResult.status === "not_found") {
+      console.error(
+        lookupResult.status === "drift"
+          ? "FAIL: archive.is returned its expected result structure, but the short-id link parser no longer matches."
+          : "FAIL: archive.is explicitly reports no snapshot for a URL known to have one.",
+      );
+      process.exitCode = 1;
+    } else {
+      console.warn(
+        "INCONCLUSIVE: the runner could not reach a recognizable archive.is search page. " +
+          "This is an availability or hosting-network block, not evidence of markup drift.",
+      );
+    }
     return;
   }
+  const lookup = lookupResult.snapshot;
   console.log(`  found snapshot: ${lookup.snapshotUrl} (${lookup.snapshotDate ?? "no date"})`);
 
-  const extracted = await fetchSnapshot(lookup.snapshotUrl);
-  if (!extracted || !extracted.bodyHtml) {
-    console.error(
-      "FAIL: fetchSnapshot() could not extract content from the snapshot. " +
-        "archive.is may now be serving a CAPTCHA/challenge page for short-id URLs, or its markup broke Readability extraction.",
-    );
-    process.exitCode = 1;
+  const snapshotResult = await fetchSnapshotDetailed(lookup.snapshotUrl);
+  if (!snapshotResult.post?.bodyHtml) {
+    console.error(`  snapshot status: ${snapshotResult.status}`);
+    console.error(`  ${JSON.stringify(snapshotResult.diagnostic)}`);
+    if (snapshotResult.status === "extraction_failed") {
+      console.error("FAIL: snapshot HTML was reachable, but Readability could no longer extract it.");
+      process.exitCode = 1;
+    } else {
+      console.warn(
+        "INCONCLUSIVE: the runner could not retrieve usable snapshot HTML. " +
+          "This is an availability or hosting-network block, not evidence of extraction drift.",
+      );
+    }
     return;
   }
+  const extracted = snapshotResult.post;
   console.log(`  extracted ${extracted.bodyHtml.length} chars of bodyHtml`);
   console.log("OK: archive.is scraping still works as expected.");
 }

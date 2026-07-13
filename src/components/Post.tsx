@@ -44,6 +44,9 @@ export function Post({ domain, url, onBack }: PostProps) {
 
   // Background archive.is fallback
   const [archiveSnapshot, setArchiveSnapshot] = useState<ArchiveSnapshot | null>(null);
+  const [archiveLookupState, setArchiveLookupState] = useState<
+    'idle' | 'checking' | 'found' | 'unavailable'
+  >('idle');
   const [showOriginalInstead, setShowOriginalInstead] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const pendingScrollAnchor = useRef<{ prefix: string; offsetTop: number; scrollY: number } | null>(null);
@@ -54,6 +57,7 @@ export function Post({ domain, url, onBack }: PostProps) {
       setError('');
       setPost(null);
       setArchiveSnapshot(null);
+      setArchiveLookupState('idle');
       setShowOriginalInstead(false);
       document.title = formatDocumentTitle('Loading post');
       try {
@@ -79,12 +83,17 @@ export function Post({ domain, url, onBack }: PostProps) {
     let cancelled = false;
 
     async function checkArchive() {
+      setArchiveLookupState('checking');
       try {
         const originalLength = estimateTextLength(post!.bodyHtml);
         const res = await fetch(
           `/api/archive?url=${encodeURIComponent(url)}&originalLength=${originalLength}`,
         );
-        if (cancelled || res.status !== 200) return;
+        if (cancelled) return;
+        if (res.status !== 200) {
+          setArchiveLookupState('unavailable');
+          return;
+        }
         const snapshot: ArchiveSnapshot = await res.json();
 
         // Capture where the reader currently is so the swap doesn't move them.
@@ -100,9 +109,13 @@ export function Post({ domain, url, onBack }: PostProps) {
           scrollY: window.scrollY,
         };
 
-        if (!cancelled) setArchiveSnapshot(snapshot);
+        if (!cancelled) {
+          setArchiveSnapshot(snapshot);
+          setArchiveLookupState('found');
+        }
       } catch {
         // archive.is being unreachable or rate-limited should never break the page.
+        if (!cancelled) setArchiveLookupState('unavailable');
       }
     }
     checkArchive();
@@ -341,6 +354,25 @@ export function Post({ domain, url, onBack }: PostProps) {
                 {showOriginalInstead ? 'Show archived copy' : 'Show original instead'}
               </button>
             </div>
+          </div>
+        )}
+
+        {archiveLookupState === 'unavailable' && !archiveSnapshot && (
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ink/15 bg-white px-4 py-3 text-sm">
+            <div className="flex items-center gap-2 text-ink-light">
+              <FileText size={16} className="shrink-0 text-ink/40" />
+              <span>
+                Showing what Unstack could retrieve from the original source. The automatic archive lookup was unavailable.
+              </span>
+            </div>
+            <a
+              href={`https://archive.is/search/?q=${encodeURIComponent(url)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded border border-ink/20 px-4 py-2.5 font-medium text-ink-light transition-colors hover:border-accent hover:text-accent"
+            >
+              Check archive.is <ExternalLink size={14} />
+            </a>
           </div>
         )}
 

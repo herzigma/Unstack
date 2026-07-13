@@ -41,6 +41,13 @@ cp .env.example .env
 
 If you plan to utilize AI features down the road, you may populate `GEMINI_API_KEY` inside `.env`. `APP_URL` is also available for custom deployment domains.
 
+Some publishers and archive services block requests from hosting-provider IP ranges. Unstack can optionally retry failed or challenged HTML requests through a proxy:
+
+- `HTML_FETCH_PROXY_URL`: An HTTP(S) endpoint that returns the target page's raw HTML. It may accept the encoded target as a `url` query parameter (the default) or include a `{url}` placeholder in its configured URL.
+- `HTML_FETCH_PROXY_TOKEN`: Optional bearer token sent only to the proxy endpoint.
+
+Direct fetching remains the default and is always attempted first. For the scheduled GitHub drift probe, the same values can be configured as repository secrets. Without a proxy, hosting-network blocks are reported as `INCONCLUSIVE`; confirmed result-structure drift still fails the workflow.
+
 ### Running locally
 
 ```bash
