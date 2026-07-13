@@ -55,4 +55,44 @@ describe('extractPost (generic)', () => {
       siteName: 'Example Magazine',
     });
   });
+
+  it('uses a fuller publisher-provided JSON-LD articleBody when the visible DOM is thin', () => {
+    const jsonLdBody = `${paragraph.repeat(10)}\n\n${paragraph.repeat(10)}`;
+    const html = `<html><head><title>Structured Article</title>
+      <script type="application/ld+json">${JSON.stringify({
+        '@type': 'NewsArticle',
+        articleBody: jsonLdBody,
+      })}</script>
+      </head><body><article><p>Short visible preview.</p></article></body></html>`;
+
+    const result = extractPost(html, 'https://news.example.com/structured');
+
+    expect(result?.bodyHtml).toContain('substantive sentence');
+    expect(result?.bodyHtml.match(/<p>/g)).toHaveLength(2);
+  });
+
+  it('escapes HTML found inside JSON-LD articleBody', () => {
+    const html = `<html><head><title>Safe Article</title>
+      <script type="application/ld+json">${JSON.stringify({
+        articleBody: `${paragraph.repeat(10)}<img src=x onerror=alert('xss')>`,
+      })}</script>
+      </head><body></body></html>`;
+
+    const result = extractPost(html, 'https://news.example.com/safe');
+
+    expect(result?.bodyHtml).toContain('&lt;img');
+    expect(result?.bodyHtml).not.toContain('<img');
+  });
+
+  it('keeps richer Readability HTML when JSON-LD is only trivially longer', () => {
+    const visibleBody = paragraph.repeat(20);
+    const html = `<html><head><title>Illustrated Article</title>
+      <script type="application/ld+json">${JSON.stringify({ articleBody: `${visibleBody} Tiny addition.` })}</script>
+      </head><body><article><img src="/photo.jpg" alt="Photo"><p>${visibleBody}</p></article></body></html>`;
+
+    const result = extractPost(html, 'https://news.example.com/illustrated');
+
+    expect(result?.bodyHtml).toContain('<img');
+    expect(result?.bodyHtml).toContain('/photo.jpg');
+  });
 });

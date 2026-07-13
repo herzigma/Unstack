@@ -10,9 +10,6 @@ const NO_RESULTS_PATTERN = /no results/i;
 const BLOCKED_RESPONSE_PATTERN =
   /please complete the security check|one more step|captcha|checking your browser|cloudflare|access denied|forbidden|too many requests|rate limit/i;
 const TRACKING_PARAM_PATTERN = /^(utm_|ref$|fbclid$|s$)/i;
-const MIN_GAIN_RATIO = 1.5;
-const MIN_GAIN_CHARS = 500;
-
 function estimateTextLength(html: string): number {
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().length;
 }
@@ -300,8 +297,9 @@ export async function fetchSnapshot(snapshotUrl: string): Promise<NormalizedPost
  * Full lookup + fetch + extract for an original article URL, cached (hits and
  * misses) since archive.is has no cache of its own and rate-limits aggressively.
  */
-export async function getArchiveCandidate(originalUrl: string): Promise<ArchiveSnapshot | null> {
-  const cached = getCached(originalUrl);
+export async function getArchiveIsCandidate(originalUrl: string): Promise<ArchiveSnapshot | null> {
+  const cacheKey = `archive.is:${originalUrl}`;
+  const cached = getCached(cacheKey);
   if (cached !== undefined) return cached;
 
   const lookupResult = await findSnapshotDetailed(originalUrl);
@@ -309,7 +307,7 @@ export async function getArchiveCandidate(originalUrl: string): Promise<ArchiveS
     // Cache only authoritative misses. Blocks, network errors, and unrecognized
     // pages are transient and should be retried on a later request.
     if (lookupResult.status === "not_found") {
-      setCached(originalUrl, null);
+      setCached(cacheKey, null);
     } else {
       console.warn("Archive.is lookup unavailable:", {
         status: lookupResult.status,
@@ -331,25 +329,15 @@ export async function getArchiveCandidate(originalUrl: string): Promise<ArchiveS
   }
 
   const snapshot: ArchiveSnapshot = {
+    source: "archive.is",
     snapshotUrl: lookup.snapshotUrl,
     snapshotDate: lookup.snapshotDate,
     bodyHtml: extracted.bodyHtml,
     textLength: estimateTextLength(extracted.bodyHtml),
   };
-  setCached(originalUrl, snapshot);
+  setCached(cacheKey, snapshot);
   return snapshot;
 }
 
-/**
- * Only worth swapping in the archive copy when it's substantially fuller -- a
- * thin gain just trades the original's images/embeds for archive.is chrome.
- * Verified empirically: a 14.3x gain (662->9459 chars) should pass, a 1.1x gain
- * (3268->3586 chars) should not.
- */
-export function meetsGainThreshold(archiveTextLength: number, originalTextLength: number): boolean {
-  if (originalTextLength <= 0) return archiveTextLength > 0;
-  return (
-    archiveTextLength >= originalTextLength * MIN_GAIN_RATIO &&
-    archiveTextLength - originalTextLength >= MIN_GAIN_CHARS
-  );
-}
+/** Backward-compatible name for direct archive.is provider callers. */
+export const getArchiveCandidate = getArchiveIsCandidate;

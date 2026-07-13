@@ -1,6 +1,7 @@
 import type { ArchiveSnapshot } from "../src/types";
 
-const TTL_MS = 60 * 60 * 1000;
+const HIT_TTL_MS = 48 * 60 * 60 * 1000;
+const MISS_TTL_MS = 60 * 60 * 1000;
 const MAX_ENTRIES = 500;
 
 type CacheValue = ArchiveSnapshot | null;
@@ -11,10 +12,9 @@ interface CacheEntry {
 }
 
 /**
- * Caches both hits and misses (null) for archive.is lookups, keyed by the original
- * article URL. archive.is has no server-side cache to lean on and rate-limits its
- * own lookup endpoints aggressively -- without this, a popular link re-triggers a
- * fresh search/fetch/parse on every page view.
+ * Caches both hits and authoritative misses (null), keyed by provider + original
+ * article URL. Keeping providers separate lets the broker fall through when one
+ * archive has no capture without suppressing another archive's result.
  */
 const cache = new Map<string, CacheEntry>();
 
@@ -33,7 +33,8 @@ export function setCached(url: string, value: CacheValue): void {
     const oldestKey = cache.keys().next().value;
     if (oldestKey !== undefined) cache.delete(oldestKey);
   }
-  cache.set(url, { value, expiresAt: Date.now() + TTL_MS });
+  const ttl = value === null ? MISS_TTL_MS : HIT_TTL_MS;
+  cache.set(url, { value, expiresAt: Date.now() + ttl });
 }
 
 export function clearCache(): void {

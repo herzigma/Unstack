@@ -4,8 +4,7 @@ import {
   findSnapshotDetailed,
   fetchSnapshot,
   fetchSnapshotDetailed,
-  getArchiveCandidate,
-  meetsGainThreshold,
+  getArchiveIsCandidate,
 } from './archive';
 import { clearCache } from '../archiveCache';
 
@@ -156,7 +155,7 @@ describe('fetchSnapshot', () => {
   });
 });
 
-describe('getArchiveCandidate', () => {
+describe('getArchiveIsCandidate', () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
     clearCache();
@@ -165,17 +164,18 @@ describe('getArchiveCandidate', () => {
   it('returns a snapshot with textLength on a full hit', async () => {
     mockFetchSequence(HIT_HTML, SNAPSHOT_ARTICLE_HTML);
 
-    const result = await getArchiveCandidate('https://www.washingtonpost.com/health/some-article/');
+    const result = await getArchiveIsCandidate('https://www.washingtonpost.com/health/some-article/');
 
     expect(result).not.toBeNull();
     expect(result?.snapshotUrl).toBe('https://archive.is/339i0');
+    expect(result?.source).toBe('archive.is');
     expect(result?.textLength).toBeGreaterThan(1000);
   });
 
   it('returns null when no snapshot is found', async () => {
     mockFetchAlways(MISS_HTML);
 
-    const result = await getArchiveCandidate('https://example.com/never-archived');
+    const result = await getArchiveIsCandidate('https://example.com/never-archived');
 
     expect(result).toBeNull();
   });
@@ -184,9 +184,9 @@ describe('getArchiveCandidate', () => {
     const fetchSpy = mockFetchSequence(HIT_HTML, SNAPSHOT_ARTICLE_HTML);
     const url = 'https://www.washingtonpost.com/health/some-article/';
 
-    const first = await getArchiveCandidate(url);
+    const first = await getArchiveIsCandidate(url);
     const callsAfterFirst = fetchSpy.mock.calls.length;
-    const second = await getArchiveCandidate(url);
+    const second = await getArchiveIsCandidate(url);
 
     expect(second).toEqual(first);
     expect(fetchSpy.mock.calls.length).toBe(callsAfterFirst);
@@ -198,29 +198,11 @@ describe('getArchiveCandidate', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const url = 'https://example.com/temporarily-blocked';
 
-    await getArchiveCandidate(url);
+    await getArchiveIsCandidate(url);
     const callsAfterFirst = fetchSpy.mock.calls.length;
-    await getArchiveCandidate(url);
+    await getArchiveIsCandidate(url);
 
     expect(fetchSpy.mock.calls.length).toBeGreaterThan(callsAfterFirst);
     warnSpy.mockRestore();
-  });
-});
-
-describe('meetsGainThreshold', () => {
-  it('accepts a 14.3x gain (662 -> 9459 chars, the WaPo case)', () => {
-    expect(meetsGainThreshold(9459, 662)).toBe(true);
-  });
-
-  it('rejects a 1.1x gain (3268 -> 3586 chars, the Atlantic case)', () => {
-    expect(meetsGainThreshold(3586, 3268)).toBe(false);
-  });
-
-  it('accepts any successful archive extraction when the original had no text at all', () => {
-    expect(meetsGainThreshold(500, 0)).toBe(true);
-  });
-
-  it('rejects when the archive text is empty even if the original also failed', () => {
-    expect(meetsGainThreshold(0, 0)).toBe(false);
   });
 });

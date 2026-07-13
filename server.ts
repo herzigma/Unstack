@@ -4,7 +4,7 @@ import { readFile } from "fs/promises";
 import { createServer as createViteServer } from "vite";
 import { getFeed } from "./server/feed";
 import { getPost, validateArticleUrl } from "./server/post";
-import { getArchiveCandidate, meetsGainThreshold } from "./server/platforms/archive";
+import { getArchiveCandidate } from "./server/archive";
 import {
   articleUrlForPreviewRequest,
   articleUrlFromPath,
@@ -89,10 +89,9 @@ async function startServer() {
   });
 
   /**
-   * Background archive.is lookup for a post the client already flagged as
+   * Background multi-provider archive lookup for a post the client flagged as
    * paywalled/thin/failed (see archiveWorthChecking on /api/post). Only returns a
-   * candidate when it's substantially fuller than what the client already has --
-   * see meetsGainThreshold.
+   * candidate when it is substantially fuller than what the client already has.
    */
   app.get("/api/archive", async (req, res) => {
     const { url, originalLength } = req.query;
@@ -109,8 +108,8 @@ async function startServer() {
     const originalTextLength = Number(originalLength) || 0;
 
     try {
-      const candidate = await getArchiveCandidate(url);
-      if (!candidate || !meetsGainThreshold(candidate.textLength, originalTextLength)) {
+      const candidate = await getArchiveCandidate(url, originalTextLength);
+      if (!candidate) {
         return res.status(204).end();
       }
       res.json(candidate);

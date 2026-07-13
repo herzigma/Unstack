@@ -2,6 +2,8 @@ import * as substack from "./platforms/substack";
 import * as generic from "./platforms/generic";
 import { fetchHeaders, fetchHtmlWithProxyFallback } from "./http";
 import { extractPageMetadata, type PageMetadata } from "./platforms/metadata";
+import { getPublisherAlternative } from "./platforms/publisherAlternates";
+import { getCachedPost, isPostCacheable, setCachedPost } from "./postCache";
 import type { NormalizedPostDetail } from "../src/types";
 
 const THIN_CONTENT_THRESHOLD = 1500;
@@ -93,7 +95,7 @@ export function validateArticleUrl(url: string): URL {
   return parsed;
 }
 
-export async function getPost(url: string): Promise<NormalizedPostDetail | null> {
+async function fetchPostUncached(url: string): Promise<NormalizedPostDetail | null> {
   try {
     const { response, html } = await fetchHtmlWithProxyFallback(
       url,
@@ -101,16 +103,21 @@ export async function getPost(url: string): Promise<NormalizedPostDetail | null>
       { shouldUseProxy: (_response, body) => ACCESS_CHALLENGE_PATTERN.test(body) },
     );
     const pageMetadata = extractPageMetadata(html, url);
+    const hasPaywallMetadata = PAYWALL_METADATA_PATTERN.test(html);
 
     // Some publishers return an HTTP error page that Readability can still parse
     // as if it were an article. DataDome's NYTimes challenge is one example: its
     // "enable JS" sentence used to become the entire story. Treat access blocks as
-    // failed extraction so the UI can try archive.is with a zero-length baseline.
+    // failed extraction so publisher alternatives and archives can still recover it.
     if (response.ok === false || ACCESS_CHALLENGE_PATTERN.test(html)) {
-      return archiveEligibleStub(url, html, pageMetadata);
+      const stub = archiveEligibleStub(url, html, pageMetadata);
+      const alternative = await getPublisherAlternative(url, html, stub);
+      const selected = alternative?.post || stub;
+      return {
+        ...selected,
+        archiveWorthChecking: estimateTextLength(selected.bodyHtml) < THIN_CONTENT_THRESHOLD,
+      };
     }
-
-    const hasPaywallMetadata = PAYWALL_METADATA_PATTERN.test(html);
 
     const substackRaw = substack.extractPostFromHtml(html);
     if (substackRaw) {
@@ -130,16 +137,18 @@ export async function getPost(url: string): Promise<NormalizedPostDetail | null>
       };
     }
 
-    const genericDetail = generic.extractPost(html, url, pageMetadata);
-    if (!genericDetail) {
-      // Readability found nothing at all -- return a stub rather than a bare failure
-      // so the client still has a canonicalUrl/title to try an archive.is rescue with.
-      return archiveEligibleStub(url, html, pageMetadata);
+    const genericDetail = generic.extractPost(html, url, pageMetadata) ||
+      archiveEligibleStub(url, html, pageMetadata);
+    const originalLength = estimateTextLength(genericDetail.bodyHtml);
+    let selected = genericDetail;
+    if (hasPaywallMetadata || originalLength < THIN_CONTENT_THRESHOLD) {
+      const alternative = await getPublisherAlternative(url, html, genericDetail);
+      if (alternative) selected = alternative.post;
     }
 
     return {
-      ...genericDetail,
-      archiveWorthChecking: hasPaywallMetadata || estimateTextLength(genericDetail.bodyHtml) < THIN_CONTENT_THRESHOLD,
+      ...selected,
+      archiveWorthChecking: hasPaywallMetadata || estimateTextLength(selected.bodyHtml) < THIN_CONTENT_THRESHOLD,
     };
   } catch (error) {
     console.error("Post fetch error:", error);
@@ -147,4 +156,13 @@ export async function getPost(url: string): Promise<NormalizedPostDetail | null>
     // fallback in the client. Returning null makes /api/post emit a terminal 404.
     return archiveEligibleStub(url, "");
   }
+}
+
+export async function getPost(url: string): Promise<NormalizedPostDetail | null> {
+  const cached = getCachedPost(url);
+  if (cached) return cached;
+
+  const post = await fetchPostUncached(url);
+  if (post && isPostCacheable(post, url)) setCachedPost(url, post);
+  return post;
 }
