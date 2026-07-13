@@ -14,6 +14,7 @@ const post: NormalizedPostDetail = {
   platform: 'generic',
   bodyHtml: '<p>Story</p>',
   isPreviewOnly: false,
+  siteName: 'The Atlantic',
 };
 
 describe('social previews', () => {
@@ -40,6 +41,7 @@ describe('social previews', () => {
 
     expect(result).toContain('<title>Democrats Became Great by Fighting the Left | Unstack</title>');
     expect(result).toContain('property="og:title" content="Democrats Became Great by Fighting the Left"');
+    expect(result).toContain('property="og:site_name" content="[Unstack] The Atlantic"');
     expect(result).toContain('property="og:description" content="In the DSA era, liberals need to remember their history."');
     expect(result).toContain('property="og:image" content="https://cdn.theatlantic.com/media/img.jpg"');
     expect(result).toContain('name="twitter:card" content="summary_large_image"');
@@ -47,6 +49,16 @@ describe('social previews', () => {
     expect(result).toContain('name="description" content="In the DSA era, liberals need to remember their history."');
     expect(result).toContain('rel="canonical" href="https://unstack.wtf/www.theatlantic.com/story"');
     expect(result).not.toContain('property="og:title" content="Unstack"');
+  });
+
+  it('falls back to the original hostname when a publication name is unavailable', () => {
+    const result = injectSocialPreview(
+      '<html><head><title>Unstack</title></head></html>',
+      { ...post, siteName: undefined },
+      'https://unstack.wtf/story',
+    );
+
+    expect(result).toContain('property="og:site_name" content="[Unstack] theatlantic.com"');
   });
 
   it('escapes publisher-provided values before inserting them into HTML', () => {

@@ -70,7 +70,7 @@ describe('getPost', () => {
       body_html: '<p>Body</p>',
     };
     const preloadJson = JSON.stringify({ post: preloadPost });
-    const html = `<script>window._preloads = JSON.parse(${JSON.stringify(preloadJson)})</script>`;
+    const html = `<meta property="og:site_name" content="Example Dispatch"><script>window._preloads = JSON.parse(${JSON.stringify(preloadJson)})</script>`;
     mockFetchOnce(html);
 
     const result = await getPost('https://example.substack.com/p/a-substack-post');
@@ -78,6 +78,7 @@ describe('getPost', () => {
     expect(result?.platform).toBe('substack');
     expect(result?.title).toBe('A Substack Post');
     expect(result?.bodyHtml).toBe('<p>Body</p>');
+    expect(result?.siteName).toBe('Example Dispatch');
   });
 
   it('flags archiveWorthChecking for a Substack preview-only paid post even with a long preview', async () => {

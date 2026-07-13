@@ -51,6 +51,18 @@ function archiveEligibleStub(
   };
 }
 
+function applyPageMetadata(
+  detail: NormalizedPostDetail,
+  pageMetadata: PageMetadata,
+): NormalizedPostDetail {
+  return {
+    ...detail,
+    description: detail.description || pageMetadata.description,
+    coverImage: detail.coverImage || pageMetadata.image,
+    siteName: pageMetadata.siteName || detail.siteName,
+  };
+}
+
 const PRIVATE_HOSTNAME_PATTERNS = [
   /^localhost$/i,
   /^127\./,
@@ -99,7 +111,7 @@ export async function getPost(url: string): Promise<NormalizedPostDetail | null>
 
     const substackRaw = substack.extractPostFromHtml(html);
     if (substackRaw) {
-      const detail = substack.normalizeDetail(substackRaw);
+      const detail = applyPageMetadata(substack.normalizeDetail(substackRaw), pageMetadata);
       return {
         ...detail,
         archiveWorthChecking: detail.isPreviewOnly || estimateTextLength(detail.bodyHtml) < THIN_CONTENT_THRESHOLD,
@@ -108,7 +120,7 @@ export async function getPost(url: string): Promise<NormalizedPostDetail | null>
 
     const substackApiRaw = await substack.fetchPostFallbackApi(url);
     if (substackApiRaw) {
-      const detail = substack.normalizeDetail(substackApiRaw);
+      const detail = applyPageMetadata(substack.normalizeDetail(substackApiRaw), pageMetadata);
       return {
         ...detail,
         archiveWorthChecking: detail.isPreviewOnly || estimateTextLength(detail.bodyHtml) < THIN_CONTENT_THRESHOLD,

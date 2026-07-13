@@ -35,6 +35,17 @@ function meta(property: string, content: string, useName = false): string {
   return `<meta ${attribute}="${property}" content="${escapeAttribute(content)}" />`;
 }
 
+function previewSiteName(post: NormalizedPostDetail): string {
+  if (post.siteName) return `[Unstack] ${post.siteName}`;
+
+  try {
+    const hostname = new URL(post.canonicalUrl).hostname.replace(/^www\./i, "");
+    return `[Unstack] ${hostname}`;
+  } catch {
+    return "Unstack";
+  }
+}
+
 export function injectSocialPreview(
   html: string,
   post: NormalizedPostDetail,
@@ -44,7 +55,7 @@ export function injectSocialPreview(
   const tags = [
     `<link rel="canonical" href="${escapeAttribute(unstackUrl)}" />`,
     '<meta property="og:type" content="article" />',
-    meta("og:site_name", "Unstack"),
+    meta("og:site_name", previewSiteName(post)),
     meta("og:title", post.title),
     meta("og:description", description),
     meta("og:url", unstackUrl),
