@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getPost, validateArticleUrl } from './post';
 
-function mockFetchOnce(text: string) {
+function mockFetchOnce(text: string, response: { ok?: boolean; status?: number } = {}) {
   vi.stubGlobal(
     'fetch',
     vi.fn().mockResolvedValue({
+      ...response,
       text: vi.fn().mockResolvedValue(text),
     }),
   );
@@ -161,5 +162,34 @@ describe('getPost', () => {
     expect(result?.bodyHtml).toBe('');
     expect(result?.archiveWorthChecking).toBe(true);
     expect(result?.title).toBe('Sign in required');
+  });
+
+  it('does not render the NYTimes DataDome challenge as article content', async () => {
+    const html = `<html lang="en"><head><title>nytimes.com</title></head><body><p id="cmsg">Please enable JS and disable any ad blocker</p><script data-cfasync="false">var dd={'rt':'i'}</script></body></html>`;
+    mockFetchOnce(html, { ok: false, status: 403 });
+
+    const result = await getPost(
+      'https://www.nytimes.com/live/2026/07/13/world/iran-war-us-trump-hormuz',
+    );
+
+    expect(result).toMatchObject({
+      title: 'The New York Times',
+      siteName: 'The New York Times',
+      bodyHtml: '',
+      archiveWorthChecking: true,
+    });
+  });
+
+  it('turns other non-success publisher responses into archive-eligible stubs', async () => {
+    mockFetchOnce('<html><head><title>Access denied</title></head><body>Forbidden</body></html>', {
+      ok: false,
+      status: 403,
+    });
+
+    const result = await getPost('https://news.example.com/blocked');
+
+    expect(result?.title).toBe('Access denied');
+    expect(result?.bodyHtml).toBe('');
+    expect(result?.archiveWorthChecking).toBe(true);
   });
 });
