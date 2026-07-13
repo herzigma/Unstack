@@ -1,6 +1,6 @@
 import * as substack from "./platforms/substack";
 import * as generic from "./platforms/generic";
-import { fetchHeaders, fetchWithTimeout } from "./http";
+import { fetchHeaders, fetchHtmlWithProxyFallback } from "./http";
 import { extractPageMetadata, type PageMetadata } from "./platforms/metadata";
 import type { NormalizedPostDetail } from "../src/types";
 
@@ -95,8 +95,11 @@ export function validateArticleUrl(url: string): URL {
 
 export async function getPost(url: string): Promise<NormalizedPostDetail | null> {
   try {
-    const response = await fetchWithTimeout(url, { headers: fetchHeaders });
-    const html = await response.text();
+    const { response, html } = await fetchHtmlWithProxyFallback(
+      url,
+      { headers: fetchHeaders },
+      { shouldUseProxy: (_response, body) => ACCESS_CHALLENGE_PATTERN.test(body) },
+    );
     const pageMetadata = extractPageMetadata(html, url);
 
     // Some publishers return an HTTP error page that Readability can still parse
@@ -140,6 +143,8 @@ export async function getPost(url: string): Promise<NormalizedPostDetail | null>
     };
   } catch (error) {
     console.error("Post fetch error:", error);
-    return null;
+    // A hosting-network timeout or DNS failure should still reach the archive
+    // fallback in the client. Returning null makes /api/post emit a terminal 404.
+    return archiveEligibleStub(url, "");
   }
 }

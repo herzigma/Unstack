@@ -1,8 +1,93 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchHeaders, fetchWithTimeout, jsonFetchHeaders } from './http';
+import {
+  fetchHeaders,
+  fetchHtmlWithProxyFallback,
+  fetchWithTimeout,
+  jsonFetchHeaders,
+} from './http';
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
+
+describe('fetchHtmlWithProxyFallback', () => {
+  function response(html: string, status = 200) {
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      text: vi.fn().mockResolvedValue(html),
+    } as unknown as Response;
+  }
+
+  it('returns a successful direct response without calling a proxy', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response('<html>direct</html>'));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('HTML_FETCH_PROXY_URL', 'https://proxy.example/fetch');
+
+    const result = await fetchHtmlWithProxyFallback('https://news.example/article');
+
+    expect(result.transport).toBe('direct');
+    expect(result.html).toContain('direct');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not let an invalid unused proxy setting break a direct success', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response('<html>direct</html>')));
+    vi.stubEnv('HTML_FETCH_PROXY_URL', 'file:///not-an-http-proxy');
+
+    const result = await fetchHtmlWithProxyFallback('https://news.example/article');
+
+    expect(result.transport).toBe('direct');
+  });
+
+  it('uses the configured proxy after a direct fetch error', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('direct timeout'))
+      .mockResolvedValueOnce(response('<html>proxied</html>'));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('HTML_FETCH_PROXY_URL', 'https://proxy.example/fetch');
+    vi.stubEnv('HTML_FETCH_PROXY_TOKEN', 'secret-token');
+
+    const result = await fetchHtmlWithProxyFallback('https://news.example/article');
+
+    expect(result.transport).toBe('proxy');
+    expect(result.html).toContain('proxied');
+    const [proxyUrl, proxyInit] = fetchMock.mock.calls[1];
+    expect(proxyUrl).toBe(
+      'https://proxy.example/fetch?url=https%3A%2F%2Fnews.example%2Farticle',
+    );
+    expect(proxyInit.headers.Authorization).toBe('Bearer secret-token');
+  });
+
+  it('uses the configured proxy for a caller-classified challenge page', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response('<html>security check</html>'))
+      .mockResolvedValueOnce(response('<html>article</html>'));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('HTML_FETCH_PROXY_URL', 'https://proxy.example/fetch?target={url}');
+
+    const result = await fetchHtmlWithProxyFallback(
+      'https://news.example/article',
+      {},
+      { shouldUseProxy: (_response, html) => html.includes('security check') },
+    );
+
+    expect(result.transport).toBe('proxy');
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      'https://proxy.example/fetch?target=https%3A%2F%2Fnews.example%2Farticle',
+    );
+  });
+
+  it('preserves direct-only behavior when no proxy is configured', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('DNS failure')));
+
+    await expect(fetchHtmlWithProxyFallback('https://news.example/article')).rejects.toThrow(
+      'DNS failure',
+    );
+  });
 });
 
 describe('header constants', () => {

@@ -116,12 +116,18 @@ describe('getPost', () => {
     expect(result?.title).toBe('Plain Article');
   });
 
-  it('returns null when the fetch itself fails', async () => {
+  it('returns an archive-eligible stub when the fetch itself fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')));
 
     const result = await getPost('https://blog.example.com/unreachable');
 
-    expect(result).toBeNull();
+    expect(result).toMatchObject({
+      title: 'blog.example.com',
+      siteName: 'blog.example.com',
+      canonicalUrl: 'https://blog.example.com/unreachable',
+      bodyHtml: '',
+      archiveWorthChecking: true,
+    });
   });
 
   it('flags archiveWorthChecking when JSON-LD declares isAccessibleForFree: false', async () => {
