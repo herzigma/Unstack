@@ -23,11 +23,14 @@ export interface NormalizedPostDetail extends NormalizedPostSummary {
   bodyHtml: string;
   isPreviewOnly: boolean;
   siteName?: string;
-  /** True when this looks paywalled/thin/failed and an archive.is lookup is worth trying. */
+  /** True when this looks paywalled/thin/failed and an archive lookup is worth trying. */
   archiveWorthChecking?: boolean;
 }
 
+export type ArchiveSource = 'wayback' | 'archive.is';
+
 export interface ArchiveSnapshot {
+  source: ArchiveSource;
   snapshotUrl: string;
   snapshotDate: string | null;
   bodyHtml: string;

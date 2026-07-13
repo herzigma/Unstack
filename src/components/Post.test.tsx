@@ -109,6 +109,7 @@ describe('Post', () => {
 
   describe('archive.is fallback', () => {
     const archiveSnapshot = {
+      source: 'archive.is' as const,
       snapshotUrl: 'https://archive.is/339i0',
       snapshotDate: '10 Jul 2026 09:55',
       bodyHtml: '<p>The full, unpaywalled article body from archive.is.</p>',
@@ -187,6 +188,10 @@ describe('Post', () => {
         'href',
         `https://archive.is/search/?q=${encodeURIComponent(basePost.canonicalUrl)}`,
       );
+      expect(screen.getByRole('link', { name: /check wayback/i })).toHaveAttribute(
+        'href',
+        `https://web.archive.org/web/*/${basePost.canonicalUrl}`,
+      );
     });
 
     it('keeps the original content and links to archive.is when the lookup request fails', async () => {
@@ -211,6 +216,26 @@ describe('Post', () => {
       const archiveLink = await screen.findByRole('link', { name: /check archive\.is/i });
       expect(archiveLink).toHaveAttribute('target', '_blank');
       expect(archiveLink).toHaveAttribute('rel', 'noopener noreferrer');
+      expect(screen.getByRole('link', { name: /check wayback/i })).toHaveAttribute(
+        'target',
+        '_blank',
+      );
+    });
+
+    it('labels a Wayback result with its provider', async () => {
+      mockPostThenArchive(
+        { ...basePost, bodyHtml: '<p>Stub only.</p>', archiveWorthChecking: true },
+        200,
+        {
+          ...archiveSnapshot,
+          source: 'wayback',
+          snapshotUrl: 'https://web.archive.org/web/20260710095548/https://example.com/article',
+        },
+      );
+
+      render(<Post domain="washingtonpost.com" url={basePost.canonicalUrl} onBack={vi.fn()} />);
+
+      expect(await screen.findByText(/Fuller copy found on the Wayback Machine/)).toBeInTheDocument();
     });
   });
 });

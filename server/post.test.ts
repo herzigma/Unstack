@@ -1,5 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getPost, validateArticleUrl } from './post';
+import { clearPostCache } from './postCache';
+
+beforeEach(() => {
+  clearPostCache();
+  vi.unstubAllGlobals();
+});
 
 function mockFetchOnce(text: string, response: { ok?: boolean; status?: number } = {}) {
   vi.stubGlobal(
@@ -198,5 +204,61 @@ describe('getPost', () => {
     expect(result?.title).toBe('Access denied');
     expect(result?.bodyHtml).toBe('');
     expect(result?.archiveWorthChecking).toBe(true);
+  });
+
+  it('uses a declared AMP page when it is materially fuller than the original DOM', async () => {
+    const paragraph =
+      'This is the complete publisher AMP article with enough text to provide a useful reading experience. ';
+    const sourceHtml = `<html><head><title>AMP Story</title><link rel="amphtml" href="/amp-story"></head><body><article><p>Short preview.</p></article></body></html>`;
+    const ampHtml = `<html><head><title>AMP Story</title></head><body><article><p>${paragraph.repeat(25)}</p></article></body></html>`;
+    const fetchMock = vi.fn().mockImplementation((requestUrl: string) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        text: vi.fn().mockResolvedValue(requestUrl.endsWith('/amp-story') ? ampHtml : sourceHtml),
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await getPost('https://news.example.com/story');
+
+    expect(result?.bodyHtml).toContain('complete publisher AMP article');
+    expect(result?.archiveWorthChecking).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('serves a substantial successful article from the 48-hour cache', async () => {
+    const paragraph =
+      'This is a substantial cacheable article sentence with enough text to exceed the complete-content threshold. ';
+    const html = `<html><head><title>Cached Story</title></head><body><article><p>${paragraph.repeat(25)}</p></article></body></html>`;
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue(html),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const url = 'https://news.example.com/cacheable-story';
+
+    const first = await getPost(url);
+    const second = await getPost(url);
+
+    expect(second).toEqual(first);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache a thin extraction', async () => {
+    const html = '<html><head><title>Thin</title></head><body><article><p>Very short.</p></article></body></html>';
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue(html),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const url = 'https://news.example.com/still-thin';
+
+    await getPost(url);
+    await getPost(url);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

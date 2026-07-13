@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArchiveSnapshot, NormalizedPostDetail } from '../types';
+import { ArchiveSnapshot, ArchiveSource, NormalizedPostDetail } from '../types';
 import { format } from 'date-fns';
 import { ArrowLeft, Loader2, Share, FileText, Lock, PlayCircle, ExternalLink } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -34,6 +34,10 @@ function platformDisplayName(post: NormalizedPostDetail): string {
   }
 }
 
+function archiveDisplayName(source: ArchiveSource): string {
+  return source === 'wayback' ? 'the Wayback Machine' : 'archive.is';
+}
+
 export function Post({ domain, url, onBack }: PostProps) {
   const [post, setPost] = useState<NormalizedPostDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,7 +46,7 @@ export function Post({ domain, url, onBack }: PostProps) {
   // Progress bar
   const [scrollProgress, setScrollProgress] = useState(0);
 
-  // Background archive.is fallback
+  // Background multi-provider archive fallback
   const [archiveSnapshot, setArchiveSnapshot] = useState<ArchiveSnapshot | null>(null);
   const [archiveLookupState, setArchiveLookupState] = useState<
     'idle' | 'checking' | 'found' | 'unavailable'
@@ -76,7 +80,7 @@ export function Post({ domain, url, onBack }: PostProps) {
     fetchPost();
   }, [url]);
 
-  // Once the (fast) article render is on screen, check archive.is in the background
+  // Once the fast article render is on screen, check archives in the background
   // for paywalled/thin/failed extractions and swap in a fuller copy if one exists.
   useEffect(() => {
     if (!post?.archiveWorthChecking) return;
@@ -114,7 +118,7 @@ export function Post({ domain, url, onBack }: PostProps) {
           setArchiveLookupState('found');
         }
       } catch {
-        // archive.is being unreachable or rate-limited should never break the page.
+        // An archive being unreachable or rate-limited should never break the page.
         if (!cancelled) setArchiveLookupState('unavailable');
       }
     }
@@ -335,7 +339,7 @@ export function Post({ domain, url, onBack }: PostProps) {
               <span>
                 {showOriginalInstead
                   ? 'Showing the original article.'
-                  : `Fuller copy found on archive.is${archiveSnapshot.snapshotDate ? ` (${archiveSnapshot.snapshotDate})` : ''}.`}
+                  : `Fuller copy found on ${archiveDisplayName(archiveSnapshot.source)}${archiveSnapshot.snapshotDate ? ` (${archiveSnapshot.snapshotDate})` : ''}.`}
               </span>
             </div>
             <div className="flex items-center gap-4 shrink-0">
@@ -362,17 +366,27 @@ export function Post({ domain, url, onBack }: PostProps) {
             <div className="flex items-center gap-2 text-ink-light">
               <FileText size={16} className="shrink-0 text-ink/40" />
               <span>
-                Showing what Unstack could retrieve from the original source. The automatic archive lookup was unavailable.
+                Showing what Unstack could retrieve from the original source. No fuller automatic archive copy was available.
               </span>
             </div>
-            <a
-              href={`https://archive.is/search/?q=${encodeURIComponent(url)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded border border-ink/20 px-4 py-2.5 font-medium text-ink-light transition-colors hover:border-accent hover:text-accent"
-            >
-              Check archive.is <ExternalLink size={14} />
-            </a>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <a
+                href={`https://web.archive.org/web/*/${url}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded border border-ink/20 px-4 py-2.5 font-medium text-ink-light transition-colors hover:border-accent hover:text-accent"
+              >
+                Check Wayback <ExternalLink size={14} />
+              </a>
+              <a
+                href={`https://archive.is/search/?q=${encodeURIComponent(url)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded border border-ink/20 px-4 py-2.5 font-medium text-ink-light transition-colors hover:border-accent hover:text-accent"
+              >
+                Check archive.is <ExternalLink size={14} />
+              </a>
+            </div>
           </div>
         )}
 
