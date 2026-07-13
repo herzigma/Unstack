@@ -35,4 +35,24 @@ describe('extractPost (generic)', () => {
     const result = extractPost('<html><body></body></html>', 'https://blog.example.com/empty');
     expect(result).toBeNull();
   });
+
+  it('preserves original publisher metadata for reader and social previews', () => {
+    const html = articleHtml.replace(
+      '</head>',
+      `<meta property="og:title" content="Social title">
+       <meta property="og:description" content="Social description">
+       <meta property="og:image" content="/social-cover.jpg">
+       <meta property="og:site_name" content="Example Magazine">
+       </head>`,
+    );
+
+    const result = extractPost(html, 'https://blog.example.com/a-great-article');
+
+    expect(result).toMatchObject({
+      title: 'Social title',
+      description: 'Social description',
+      coverImage: 'https://blog.example.com/social-cover.jpg',
+      siteName: 'Example Magazine',
+    });
+  });
 });

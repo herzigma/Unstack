@@ -1,6 +1,7 @@
 import * as substack from "./platforms/substack";
 import * as generic from "./platforms/generic";
 import { fetchHeaders, fetchWithTimeout } from "./http";
+import { extractPageMetadata, type PageMetadata } from "./platforms/metadata";
 import type { NormalizedPostDetail } from "../src/types";
 
 const THIN_CONTENT_THRESHOLD = 1500;
@@ -23,9 +24,13 @@ function siteNameForUrl(url: string): string {
   return hostname === "nytimes.com" ? "The New York Times" : hostname;
 }
 
-function archiveEligibleStub(url: string, html: string): NormalizedPostDetail {
-  const siteName = siteNameForUrl(url);
-  const rawTitle = extractRawTitle(html);
+function archiveEligibleStub(
+  url: string,
+  html: string,
+  pageMetadata: PageMetadata = extractPageMetadata(html, url),
+): NormalizedPostDetail {
+  const siteName = pageMetadata.siteName || siteNameForUrl(url);
+  const rawTitle = pageMetadata.title || extractRawTitle(html);
   const rawTitleHostname = rawTitle.toLowerCase().replace(/^www\./, "");
   const urlHostname = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
   const title = rawTitle === "Untitled" || rawTitleHostname === urlHostname ? siteName : rawTitle;
@@ -35,7 +40,9 @@ function archiveEligibleStub(url: string, html: string): NormalizedPostDetail {
     title,
     publishedAt: "",
     isPaywalled: false,
-    canonicalUrl: url,
+    canonicalUrl: pageMetadata.canonicalUrl || url,
+    description: pageMetadata.description,
+    coverImage: pageMetadata.image,
     platform: "generic",
     bodyHtml: "",
     isPreviewOnly: false,
@@ -78,13 +85,14 @@ export async function getPost(url: string): Promise<NormalizedPostDetail | null>
   try {
     const response = await fetchWithTimeout(url, { headers: fetchHeaders });
     const html = await response.text();
+    const pageMetadata = extractPageMetadata(html, url);
 
     // Some publishers return an HTTP error page that Readability can still parse
     // as if it were an article. DataDome's NYTimes challenge is one example: its
     // "enable JS" sentence used to become the entire story. Treat access blocks as
     // failed extraction so the UI can try archive.is with a zero-length baseline.
     if (response.ok === false || ACCESS_CHALLENGE_PATTERN.test(html)) {
-      return archiveEligibleStub(url, html);
+      return archiveEligibleStub(url, html, pageMetadata);
     }
 
     const hasPaywallMetadata = PAYWALL_METADATA_PATTERN.test(html);
@@ -107,11 +115,11 @@ export async function getPost(url: string): Promise<NormalizedPostDetail | null>
       };
     }
 
-    const genericDetail = generic.extractPost(html, url);
+    const genericDetail = generic.extractPost(html, url, pageMetadata);
     if (!genericDetail) {
       // Readability found nothing at all -- return a stub rather than a bare failure
       // so the client still has a canonicalUrl/title to try an archive.is rescue with.
-      return archiveEligibleStub(url, html);
+      return archiveEligibleStub(url, html, pageMetadata);
     }
 
     return {
