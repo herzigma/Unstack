@@ -7,6 +7,7 @@ import { getCachedPost, isPostCacheable, setCachedPost } from "./postCache";
 import type { NormalizedPostDetail } from "../src/types";
 
 const THIN_CONTENT_THRESHOLD = 1500;
+const FAST_METADATA_FETCH_TIMEOUT_MS = 2500;
 const PAYWALL_METADATA_PATTERN =
   /"isAccessibleForFree"\s*:\s*(false|"false")|property="article:content_tier"[^>]*content="locked"|content="locked"[^>]*property="article:content_tier"/i;
 const ACCESS_CHALLENGE_PATTERN =
@@ -26,7 +27,7 @@ function siteNameForUrl(url: string): string {
   return hostname === "nytimes.com" ? "The New York Times" : hostname;
 }
 
-function archiveEligibleStub(
+function fallbackPostFromMetadata(
   url: string,
   html: string,
   pageMetadata: PageMetadata = extractPageMetadata(html, url),
@@ -49,7 +50,6 @@ function archiveEligibleStub(
     bodyHtml: "",
     isPreviewOnly: false,
     siteName,
-    archiveWorthChecking: true,
   };
 }
 
@@ -108,37 +108,25 @@ async function fetchPostUncached(url: string): Promise<NormalizedPostDetail | nu
     // Some publishers return an HTTP error page that Readability can still parse
     // as if it were an article. DataDome's NYTimes challenge is one example: its
     // "enable JS" sentence used to become the entire story. Treat access blocks as
-    // failed extraction so publisher alternatives and archives can still recover it.
+    // failed extraction so publisher alternatives can still recover it.
     if (response.ok === false || ACCESS_CHALLENGE_PATTERN.test(html)) {
-      const stub = archiveEligibleStub(url, html, pageMetadata);
+      const stub = fallbackPostFromMetadata(url, html, pageMetadata);
       const alternative = await getPublisherAlternative(url, html, stub);
-      const selected = alternative?.post || stub;
-      return {
-        ...selected,
-        archiveWorthChecking: estimateTextLength(selected.bodyHtml) < THIN_CONTENT_THRESHOLD,
-      };
+      return alternative?.post || stub;
     }
 
     const substackRaw = substack.extractPostFromHtml(html);
     if (substackRaw) {
-      const detail = applyPageMetadata(substack.normalizeDetail(substackRaw), pageMetadata);
-      return {
-        ...detail,
-        archiveWorthChecking: detail.isPreviewOnly || estimateTextLength(detail.bodyHtml) < THIN_CONTENT_THRESHOLD,
-      };
+      return applyPageMetadata(substack.normalizeDetail(substackRaw), pageMetadata);
     }
 
     const substackApiRaw = await substack.fetchPostFallbackApi(url);
     if (substackApiRaw) {
-      const detail = applyPageMetadata(substack.normalizeDetail(substackApiRaw), pageMetadata);
-      return {
-        ...detail,
-        archiveWorthChecking: detail.isPreviewOnly || estimateTextLength(detail.bodyHtml) < THIN_CONTENT_THRESHOLD,
-      };
+      return applyPageMetadata(substack.normalizeDetail(substackApiRaw), pageMetadata);
     }
 
     const genericDetail = generic.extractPost(html, url, pageMetadata) ||
-      archiveEligibleStub(url, html, pageMetadata);
+      fallbackPostFromMetadata(url, html, pageMetadata);
     const originalLength = estimateTextLength(genericDetail.bodyHtml);
     let selected = genericDetail;
     if (hasPaywallMetadata || originalLength < THIN_CONTENT_THRESHOLD) {
@@ -146,15 +134,12 @@ async function fetchPostUncached(url: string): Promise<NormalizedPostDetail | nu
       if (alternative) selected = alternative.post;
     }
 
-    return {
-      ...selected,
-      archiveWorthChecking: hasPaywallMetadata || estimateTextLength(selected.bodyHtml) < THIN_CONTENT_THRESHOLD,
-    };
+    return selected;
   } catch (error) {
     console.error("Post fetch error:", error);
-    // A hosting-network timeout or DNS failure should still reach the archive
-    // fallback in the client. Returning null makes /api/post emit a terminal 404.
-    return archiveEligibleStub(url, "");
+    // A hosting-network timeout or DNS failure should still yield a stub instead
+    // of a bare 404, since page metadata may still be usable.
+    return fallbackPostFromMetadata(url, "");
   }
 }
 
@@ -165,4 +150,25 @@ export async function getPost(url: string): Promise<NormalizedPostDetail | null>
   const post = await fetchPostUncached(url);
   if (post && isPostCacheable(post, url)) setCachedPost(url, post);
   return post;
+}
+
+/**
+ * A single bounded fetch + page-metadata extraction, skipping Substack/generic
+ * body extraction and publisher-alternate fan-out entirely. Used as a fast
+ * fallback (e.g. for SSR social-preview tags) when the full getPost() extraction
+ * is too slow to wait for -- still returns a real title/description/image from
+ * the page's own meta tags rather than nothing.
+ */
+export async function fetchFastPostMetadata(url: string): Promise<NormalizedPostDetail | null> {
+  try {
+    const { html } = await fetchHtmlWithProxyFallback(
+      url,
+      { headers: fetchHeaders },
+      { timeoutMs: FAST_METADATA_FETCH_TIMEOUT_MS },
+    );
+    return fallbackPostFromMetadata(url, html);
+  } catch (error) {
+    console.error("Fast post metadata fetch error:", error);
+    return null;
+  }
 }

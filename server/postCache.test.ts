@@ -18,7 +18,6 @@ const post: NormalizedPostDetail = {
   platform: 'generic',
   bodyHtml: `<p>${substantialText}</p>`,
   isPreviewOnly: false,
-  archiveWorthChecking: false,
 };
 
 describe('post cache', () => {
@@ -50,12 +49,11 @@ describe('post cache', () => {
     expect(getCachedPost(post.canonicalUrl)).toBeUndefined();
   });
 
-  it('classifies thin, preview-only, paywalled, and archive-worthy results as uncacheable', () => {
+  it('classifies thin, preview-only, and paywalled results as uncacheable', () => {
     expect(isPostCacheable(post)).toBe(true);
     expect(isPostCacheable({ ...post, bodyHtml: '<p>Thin.</p>' })).toBe(false);
     expect(isPostCacheable({ ...post, isPreviewOnly: true })).toBe(false);
     expect(isPostCacheable({ ...post, isPaywalled: true })).toBe(false);
-    expect(isPostCacheable({ ...post, archiveWorthChecking: true })).toBe(false);
     expect(isPostCacheable(post, 'https://example.com/article?token=secret')).toBe(false);
   });
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getPost, validateArticleUrl } from './post';
+import { getPost, validateArticleUrl, fetchFastPostMetadata } from './post';
 import { clearPostCache } from './postCache';
 
 beforeEach(() => {
@@ -87,7 +87,7 @@ describe('getPost', () => {
     expect(result?.siteName).toBe('Example Dispatch');
   });
 
-  it('flags archiveWorthChecking for a Substack preview-only paid post even with a long preview', async () => {
+  it('marks a Substack preview-only paid post as preview-only even with a long preview', async () => {
     const paragraph = 'This is a long enough preview paragraph to clear the thin-content threshold on its own. ';
     const preloadPost = {
       id: 2,
@@ -107,7 +107,6 @@ describe('getPost', () => {
     const result = await getPost('https://example.substack.com/p/a-paid-post');
 
     expect(result?.isPreviewOnly).toBe(true);
-    expect(result?.archiveWorthChecking).toBe(true);
   });
 
   it('falls back to generic Readability extraction for non-Substack HTML', async () => {
@@ -122,7 +121,7 @@ describe('getPost', () => {
     expect(result?.title).toBe('Plain Article');
   });
 
-  it('returns an archive-eligible stub when the fetch itself fails', async () => {
+  it('returns a fallback metadata stub when the fetch itself fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')));
 
     const result = await getPost('https://blog.example.com/unreachable');
@@ -132,48 +131,16 @@ describe('getPost', () => {
       siteName: 'blog.example.com',
       canonicalUrl: 'https://blog.example.com/unreachable',
       bodyHtml: '',
-      archiveWorthChecking: true,
     });
   });
 
-  it('flags archiveWorthChecking when JSON-LD declares isAccessibleForFree: false', async () => {
-    const paragraph = 'A short stub sentence before the sign-in wall kicks in. ';
-    const html = `<html><head><title>Stub</title><script type="application/ld+json">{"isAccessibleForFree": false}</script></head><body><article><h1>Stub</h1><p>${paragraph.repeat(3)}</p></article></body></html>`;
-    mockFetchOnce(html);
-
-    const result = await getPost('https://news.example.com/paywalled-article');
-
-    expect(result?.archiveWorthChecking).toBe(true);
-  });
-
-  it('flags archiveWorthChecking when the extracted text is thin', async () => {
-    const html = `<html><head><title>Thin</title></head><body><article><h1>Thin</h1><p>Just a headline and one short line.</p></article></body></html>`;
-    mockFetchOnce(html);
-
-    const result = await getPost('https://news.example.com/thin-article');
-
-    expect(result?.archiveWorthChecking).toBe(true);
-  });
-
-  it('does not flag archiveWorthChecking for a normal, substantial article', async () => {
-    const paragraph =
-      'This is a substantive sentence written to give Readability enough text to score this block as the main content. ';
-    const html = `<html><head><title>Full Article</title></head><body><article><h1>Full Article</h1><p>${paragraph.repeat(30)}</p></article></body></html>`;
-    mockFetchOnce(html);
-
-    const result = await getPost('https://blog.example.com/full-article');
-
-    expect(result?.archiveWorthChecking).toBe(false);
-  });
-
-  it('returns an archive-eligible stub instead of null when generic extraction fails entirely', async () => {
+  it('returns a fallback metadata stub instead of null when generic extraction fails entirely', async () => {
     mockFetchOnce('<html><head><title>Sign in required</title></head><body></body></html>');
 
     const result = await getPost('https://news.example.com/behind-a-wall');
 
     expect(result).not.toBeNull();
     expect(result?.bodyHtml).toBe('');
-    expect(result?.archiveWorthChecking).toBe(true);
     expect(result?.title).toBe('Sign in required');
   });
 
@@ -189,11 +156,10 @@ describe('getPost', () => {
       title: 'The New York Times',
       siteName: 'The New York Times',
       bodyHtml: '',
-      archiveWorthChecking: true,
     });
   });
 
-  it('turns other non-success publisher responses into archive-eligible stubs', async () => {
+  it('turns other non-success publisher responses into fallback metadata stubs', async () => {
     mockFetchOnce('<html><head><title>Access denied</title></head><body>Forbidden</body></html>', {
       ok: false,
       status: 403,
@@ -203,7 +169,6 @@ describe('getPost', () => {
 
     expect(result?.title).toBe('Access denied');
     expect(result?.bodyHtml).toBe('');
-    expect(result?.archiveWorthChecking).toBe(true);
   });
 
   it('uses a declared AMP page when it is materially fuller than the original DOM', async () => {
@@ -223,7 +188,6 @@ describe('getPost', () => {
     const result = await getPost('https://news.example.com/story');
 
     expect(result?.bodyHtml).toContain('complete publisher AMP article');
-    expect(result?.archiveWorthChecking).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -260,5 +224,27 @@ describe('getPost', () => {
     await getPost(url);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('fetchFastPostMetadata', () => {
+  it('returns a metadata-only stub without extracting a body', async () => {
+    const html = `<html><head><title>Slow Article</title><meta property="og:description" content="A quick description."><meta property="og:image" content="https://news.example.com/cover.jpg"></head><body><article><p>Body text that would normally be extracted.</p></article></body></html>`;
+    mockFetchOnce(html);
+
+    const result = await fetchFastPostMetadata('https://news.example.com/slow-article');
+
+    expect(result?.title).toBe('Slow Article');
+    expect(result?.description).toBe('A quick description.');
+    expect(result?.coverImage).toBe('https://news.example.com/cover.jpg');
+    expect(result?.bodyHtml).toBe('');
+  });
+
+  it('returns null when the fetch itself fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')));
+
+    const result = await fetchFastPostMetadata('https://news.example.com/unreachable');
+
+    expect(result).toBeNull();
   });
 });

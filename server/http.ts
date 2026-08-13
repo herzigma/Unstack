@@ -1,6 +1,6 @@
 /**
- * Browser-realistic headers for fetching actual HTML pages (article pages, archive
- * pages, RSS feeds). Some platforms (Medium in particular) content-negotiate on
+ * Browser-realistic headers for fetching actual HTML pages (article pages, AMP/print
+ * alternates, RSS feeds). Some platforms (Medium in particular) content-negotiate on
  * Accept and serve a thin, JS-only shell instead of the real server-rendered page
  * when Accept looks API-like -- so this must NOT be "application/json".
  */

@@ -3,14 +3,22 @@ import path from "path";
 import { readFile } from "fs/promises";
 import { createServer as createViteServer } from "vite";
 import { getFeed } from "./server/feed";
-import { getPost, validateArticleUrl } from "./server/post";
-import { getArchiveCandidate } from "./server/archive";
+import { getPost, validateArticleUrl, fetchFastPostMetadata } from "./server/post";
 import {
   articleUrlForPreviewRequest,
   articleUrlFromPath,
   injectSocialPreview,
 } from "./server/socialPreview";
 import { cachePreviewPost, takePreviewPost } from "./server/previewPostCache";
+import { withTimeout } from "./server/withTimeout";
+
+// Social-preview crawlers (Slack, etc.) time out well before the full article
+// extraction can finish for paywalled/thin pages, which can chase publisher
+// alternates for up to ~16s on top of the initial fetch. Bound the wait and fall
+// back to a fast metadata-only fetch so a preview always renders quickly. The
+// full getPost() call keeps running in the background either way, so the post
+// cache still gets warmed for next time even when this deadline is missed.
+const SOCIAL_PREVIEW_TIMEOUT_MS = 4000;
 
 function publicRequestUrl(req: express.Request): string {
   const forwardedProtocol = req.get("x-forwarded-proto")?.split(",")[0].trim();
@@ -24,10 +32,22 @@ async function addSocialPreview(html: string, req: express.Request): Promise<str
 
   try {
     validateArticleUrl(articleUrl);
-    const post = await getPost(articleUrl);
+
+    const fullPostPromise = getPost(articleUrl)
+      .then((full) => {
+        if (full) cachePreviewPost(articleUrl, full);
+        return full;
+      })
+      .catch((error) => {
+        console.error("Social preview background fetch error:", error);
+        return null;
+      });
+
+    const post = await withTimeout(fullPostPromise, SOCIAL_PREVIEW_TIMEOUT_MS, () =>
+      fetchFastPostMetadata(articleUrl),
+    );
     if (!post) return html;
 
-    cachePreviewPost(articleUrl, post);
     return injectSocialPreview(html, post, publicRequestUrl(req));
   } catch (error) {
     console.error("Social preview error:", error);
@@ -85,37 +105,6 @@ async function startServer() {
     } catch (error: any) {
       console.error("Post error:", error);
       res.status(500).json({ error: error.message || "An error occurred fetching the post" });
-    }
-  });
-
-  /**
-   * Background multi-provider archive lookup for a post the client flagged as
-   * paywalled/thin/failed (see archiveWorthChecking on /api/post). Only returns a
-   * candidate when it is substantially fuller than what the client already has.
-   */
-  app.get("/api/archive", async (req, res) => {
-    const { url, originalLength } = req.query;
-    if (!url || typeof url !== "string") {
-      return res.status(400).json({ error: "Missing or invalid url" });
-    }
-
-    try {
-      validateArticleUrl(url);
-    } catch (error: any) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    const originalTextLength = Number(originalLength) || 0;
-
-    try {
-      const candidate = await getArchiveCandidate(url, originalTextLength);
-      if (!candidate) {
-        return res.status(204).end();
-      }
-      res.json(candidate);
-    } catch (error: any) {
-      console.error("Archive lookup error:", error);
-      res.status(204).end();
     }
   });
 

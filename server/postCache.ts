@@ -41,7 +41,6 @@ export function isPostCacheable(
     !hasSensitiveQuery &&
     !post.isPaywalled &&
     !post.isPreviewOnly &&
-    post.archiveWorthChecking !== true &&
     post.bodyHtml.length <= MAX_BODY_HTML_CHARS &&
     estimateTextLength(post.bodyHtml) >= MIN_TEXT_LENGTH
   );
