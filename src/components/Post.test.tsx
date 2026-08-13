@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Post } from './Post';
@@ -46,7 +46,9 @@ describe('Post', () => {
     expect(await screen.findByRole('heading', { name: 'Peter Thiel’s secret society, exposed' })).toBeInTheDocument();
     expect(screen.getByText('Inside the story.')).toBeInTheDocument();
     expect(screen.getByText('Author Name')).toBeInTheDocument();
-    expect(document.title).toBe('[Unstack] Peter Thiel’s secret society, exposed');
+    await waitFor(() =>
+      expect(document.title).toBe('[Unstack] Peter Thiel’s secret society, exposed'),
+    );
   });
 
   it('renders the error state and calls onBack', async () => {
