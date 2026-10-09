@@ -22,15 +22,28 @@ describe('social previews', () => {
     expect(articleUrlFromPath('/www.theatlantic.com/ideas/archive/2026/07/story/687839/')).toBe(
       'https://www.theatlantic.com/ideas/archive/2026/07/story/687839/',
     );
+    expect(articleUrlFromPath('/https:/newsletter.pragmaticengineer.com/p/the-state-of-the-tech-industry-in')).toBe(
+      'https://newsletter.pragmaticengineer.com/p/the-state-of-the-tech-industry-in',
+    );
+    expect(articleUrlFromPath('/https://newsletter.pragmaticengineer.com/p/the-state-of-the-tech-industry-in')).toBe(
+      'https://newsletter.pragmaticengineer.com/p/the-state-of-the-tech-industry-in',
+    );
+    expect(articleUrlFromPath('/https%3A%2F%2Fnewsletter.pragmaticengineer.com%2Fp%2Fthe-state-of-the-tech-industry-in')).toBe(
+      'https://newsletter.pragmaticengineer.com/p/the-state-of-the-tech-industry-in',
+    );
     expect(articleUrlFromPath('/assets/index.js')).toBeNull();
     expect(articleUrlFromPath('/publisher.example')).toBeNull();
   });
 
   it('renders metadata for every GET article request without user-agent gating', () => {
     const path = '/www.theatlantic.com/magazine/2026/08/reading-crisis/687618/';
+    const embeddedUrlPath = '/https:/newsletter.pragmaticengineer.com/p/the-state-of-the-tech-industry-in';
 
     expect(articleUrlForPreviewRequest('GET', path)).toBe(
       'https://www.theatlantic.com/magazine/2026/08/reading-crisis/687618/',
+    );
+    expect(articleUrlForPreviewRequest('GET', embeddedUrlPath)).toBe(
+      'https://newsletter.pragmaticengineer.com/p/the-state-of-the-tech-industry-in',
     );
     expect(articleUrlForPreviewRequest('HEAD', path)).toBeNull();
   });

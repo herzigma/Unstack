@@ -9,8 +9,11 @@ export function articleUrlFromPath(pathname: string): string | null {
     return null;
   }
 
+  // Shared links may embed the full publisher URL after Unstack's slash,
+  // with either one or two slashes after the scheme.
+  const hasEmbeddedProtocol = /^https?:\/{1,2}/i.test(input);
   const firstSegment = input.split("/")[0];
-  if (!firstSegment.includes(".")) return null;
+  if (!hasEmbeddedProtocol && !firstSegment.includes(".")) return null;
 
   const parsed = parseArticleInput(input);
   return parsed?.url || null;
